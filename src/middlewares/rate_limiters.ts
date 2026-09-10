@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 // Protección de fuerza bruta — solo para intentos reales de login/registro,
 // no para rutas autenticadas de uso normal (ver eso en login/me.router.ts).
@@ -21,7 +21,7 @@ export const quoteSendLimiter = rateLimit({
   max: process.env.NODE_ENV === "test" ? 1000 : 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.userId || req.ip || "unknown",
+  keyGenerator: (req) => req.user?.userId || ipKeyGenerator(req.ip ?? "unknown"),
   message: { ok: false, message: "Demasiados envíos de correo. Intenta más tarde." },
 });
 
@@ -34,6 +34,6 @@ export const quoteSendDailyLimiter = rateLimit({
   max: process.env.NODE_ENV === "test" ? 1000 : 15,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.userId || req.ip || "unknown",
+  keyGenerator: (req) => req.user?.userId || ipKeyGenerator(req.ip ?? "unknown"),
   message: { ok: false, message: "Alcanzaste el límite diario de envíos. Intenta mañana." },
 });

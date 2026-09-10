@@ -6,6 +6,7 @@ import { companyProfileRepository } from "../profiles/company_profile_repository
 import { dispatchQuoteToClients } from "./quote-dispatch.service";
 import { generateQuotePdf } from "./quote.service";
 import { QuoteTemplateType } from "./quote.types";
+import { saveQuoteHistory } from "./quote-history/quote-history.repository";
 
 type QuoteItem = {
   title: string;
@@ -104,6 +105,13 @@ export const quoteSendController = {
       if (!Array.isArray(products) || products.length === 0) {
         return res.status(400).json({ ok: false, message: "Se requiere al menos un producto." });
       }
+      // La descarga ahora es el único camino para generar un PDF (no hay envío por
+      // correo), así que también queda como el único punto donde se guarda historial —
+      // por eso acá sí exige nombre/email del cliente (antes era opcional, con defaults
+      // de "Cliente de ejemplo" para una vista previa que nunca se persistía).
+      if (!clients?.[0]?.name?.trim() || !clients?.[0]?.email?.trim()) {
+        return res.status(400).json({ ok: false, message: "Se requiere el nombre y email del cliente." });
+      }
 
       const profile = await companyProfileService.getByUserId(userId).catch(() => null);
       const brandName = profile?.business_name || "Mi negocio";
@@ -152,6 +160,25 @@ export const quoteSendController = {
         extraFields,
       });
       filePath = generated.filePath;
+
+      await saveQuoteHistory({
+        userId,
+        templateType,
+        clientName: previewClient!.name,
+        clientEmail: previewClient!.email,
+        clientPhone: previewClient!.phone,
+        items: products,
+        total,
+        extraFields,
+        status: "downloaded",
+        quoteStyle: quoteStyle || profile?.quote_style,
+        quoteAccentColor: quoteAccentColor || profile?.quote_accent_color || profile?.brand_color,
+        quoteLogoUrl: quoteLogoUrl || profile?.quote_logo_url,
+        currency: currency || profile?.currency,
+        taxRate,
+        taxAmount,
+        taxLabel: taxLabelOverride || profile?.tax_label,
+      }).catch((err) => console.error("[quoteSend] preview historial:", err));
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", "inline");

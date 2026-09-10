@@ -55,6 +55,9 @@ export const quoteHistoryController = {
       if (!Array.isArray(clients) || clients.length === 0) {
         return res.status(400).json({ ok: false, message: "Se requiere al menos un destinatario." });
       }
+      if (clients.length > 5) {
+        return res.status(400).json({ ok: false, message: "Máximo 5 destinatarios por envío." });
+      }
       for (const c of clients) {
         if (!c?.name?.trim() || !c?.email?.trim()) {
           return res.status(400).json({ ok: false, message: "Nombre y email son obligatorios para cada destinatario." });

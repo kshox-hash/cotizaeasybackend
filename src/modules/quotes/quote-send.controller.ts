@@ -185,6 +185,12 @@ export const quoteSendController = {
       if (!Array.isArray(clients) || clients.length === 0) {
         return res.status(400).json({ ok: false, message: "Se requiere al menos un destinatario." });
       }
+      // Tope de defensa: sin esto, un solo request con miles de destinatarios agota la
+      // cuota del proveedor de email (o dispara baneo por abuso) sin que el rate limiter
+      // por request lo note.
+      if (clients.length > 50) {
+        return res.status(400).json({ ok: false, message: "Máximo 50 destinatarios por envío." });
+      }
       for (const c of clients) {
         if (!c?.name?.trim() || !c?.email?.trim()) {
           return res.status(400).json({ ok: false, message: "Nombre y email son obligatorios para cada destinatario." });

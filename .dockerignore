@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.log
+src/__tests__
+src/generated-pdfs

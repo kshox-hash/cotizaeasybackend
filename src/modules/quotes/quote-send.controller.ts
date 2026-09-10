@@ -188,8 +188,8 @@ export const quoteSendController = {
       // Tope de defensa: sin esto, un solo request con miles de destinatarios agota la
       // cuota del proveedor de email (o dispara baneo por abuso) sin que el rate limiter
       // por request lo note.
-      if (clients.length > 50) {
-        return res.status(400).json({ ok: false, message: "Máximo 50 destinatarios por envío." });
+      if (clients.length > 5) {
+        return res.status(400).json({ ok: false, message: "Máximo 5 destinatarios por envío." });
       }
       for (const c of clients) {
         if (!c?.name?.trim() || !c?.email?.trim()) {

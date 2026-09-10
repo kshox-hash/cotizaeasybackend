@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { authMiddleware } from "../../middlewares/auth_middleware";
-import { quoteSendLimiter } from "../../middlewares/rate_limiters";
+import { quoteSendLimiter, quoteSendDailyLimiter } from "../../middlewares/rate_limiters";
 import { quoteServicesController } from "./quote-catalog/quote-catalog.controller";
 import { quoteHistoryController } from "./quote-history/quote-history.controller";
 import { quoteSendController } from "./quote-send.controller";
@@ -20,7 +20,7 @@ const upload = multer({
 });
 
 // ── Send ──────────────────────────────────────────────────────────────────────
-router.post("/quotes/send",        authMiddleware, quoteSendLimiter, quoteSendController.send);
+router.post("/quotes/send",        authMiddleware, quoteSendLimiter, quoteSendDailyLimiter, quoteSendController.send);
 router.post("/quotes/preview",     authMiddleware, quoteSendController.preview);
 router.post("/quotes/upload-logo", authMiddleware, upload.single("photo"), quoteSendController.uploadLogo);
 router.delete("/quotes/logo",      authMiddleware, quoteSendController.removeLogo);
@@ -36,6 +36,6 @@ router.delete("/quote-services/:serviceId",  authMiddleware, quoteServicesContro
 router.get   ("/quote-history",              authMiddleware, quoteHistoryController.list);
 router.delete("/quote-history/:quoteId",     authMiddleware, quoteHistoryController.remove);
 router.patch ("/quote-history/:quoteId/answer", authMiddleware, quoteHistoryController.answer);
-router.post  ("/quote-history/:quoteId/resend", authMiddleware, quoteSendLimiter, quoteHistoryController.resend);
+router.post  ("/quote-history/:quoteId/resend", authMiddleware, quoteSendLimiter, quoteSendDailyLimiter, quoteHistoryController.resend);
 
 export default router;

@@ -24,3 +24,16 @@ export const quoteSendLimiter = rateLimit({
   keyGenerator: (req) => req.user?.userId || req.ip || "unknown",
   message: { ok: false, message: "Demasiados envíos de correo. Intenta más tarde." },
 });
+
+// Segundo techo, diario: el límite por hora solo protege ráfagas — una cuenta que
+// sostiene el máximo las 24hs igual llegaría a ~36.000 emails/mes. Con precio plano
+// ilimitado ($5-7/mes) eso sale carísimo para una sola cuenta. 15 envíos/día
+// (75 emails/día tope) sigue siendo mucho más de lo que una pyme real necesita.
+export const quoteSendDailyLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: process.env.NODE_ENV === "test" ? 1000 : 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId || req.ip || "unknown",
+  message: { ok: false, message: "Alcanzaste el límite diario de envíos. Intenta mañana." },
+});

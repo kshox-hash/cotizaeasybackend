@@ -14,11 +14,11 @@ export const authLimiter = rateLimit({
 
 // Envío real de emails (cotizaciones) — límite por usuario, no por IP, para que no se
 // esquive cambiando de red. Va montado después de authMiddleware (necesita req.user).
-// Combinado con el tope de 5 destinatarios por request, deja un techo de ~100
-// emails/hora por cuenta — cubre uso real y corta cualquier intento de blast.
+// Combinado con el tope de 5 destinatarios por request, deja un techo de ~50
+// emails/hora por cuenta — cubre uso real (pymes chicas) y corta cualquier blast.
 export const quoteSendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: process.env.NODE_ENV === "test" ? 1000 : 20,
+  max: process.env.NODE_ENV === "test" ? 1000 : 10,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.userId || req.ip || "unknown",

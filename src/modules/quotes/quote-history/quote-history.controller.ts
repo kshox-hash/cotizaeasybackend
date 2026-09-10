@@ -80,6 +80,7 @@ export const quoteHistoryController = {
 
       const results = await dispatchQuoteToClients({
         userId,
+        ownerEmail: req.user?.email,
         clients,
         templateType: original.template_type,
         docTitle,

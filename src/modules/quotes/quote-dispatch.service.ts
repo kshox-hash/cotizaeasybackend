@@ -44,6 +44,7 @@ export function normalizeStoredItemsToLines(items: any[]): QuoteLine[] {
 
 export async function dispatchQuoteToClients(params: {
   userId: string;
+  ownerEmail?: string;
   clients: DispatchClient[];
   templateType: string;
   docTitle: string;
@@ -134,6 +135,7 @@ export async function dispatchQuoteToClients(params: {
         taxAmount:    params.taxAmount,
         taxLabel:     params.taxLabel,
         viewUrl,
+        replyTo:      params.ownerEmail,
       });
 
       results.push({ email: client.email, ok: true });

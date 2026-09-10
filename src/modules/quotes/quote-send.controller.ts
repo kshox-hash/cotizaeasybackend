@@ -224,6 +224,7 @@ export const quoteSendController = {
 
       const results = await dispatchQuoteToClients({
         userId,
+        ownerEmail: req.user?.email,
         clients,
         templateType,
         docTitle,

@@ -17,6 +17,9 @@ type SendQuoteEmailInput = {
   taxAmount?: number;
   taxLabel?: string;
   viewUrl?: string;
+  /** Email real del dueño de la cuenta — si el cliente responde el correo, le llega
+   *  directo a él en vez de perderse en la casilla compartida de Cotiza Easy Pro. */
+  replyTo?: string;
 };
 
 function buildQuoteEmailHtml(input: SendQuoteEmailInput): string {
@@ -239,6 +242,7 @@ export async function sendQuoteEmail(input: SendQuoteEmailInput): Promise<void> 
   await withRetry(() => transporter.sendMail({
     from: `"${input.brandName}" <${process.env.SMTP_FROM_EMAIL}>`,
     to: input.to,
+    replyTo: input.replyTo || undefined,
     subject: `Tu cotización de ${input.brandName}`,
     html,
     attachments: [

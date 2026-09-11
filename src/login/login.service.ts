@@ -117,7 +117,7 @@ export async function loginUser(email: string, password: string) {
 // es dueño de ese correo, no hace falta pedírselo de nuevo). Si no existe, se crea sola,
 // sin contraseña (password null) — loginUser ya trata "sin password" como "no puede
 // entrar con clave", así que esas cuentas solo entran por Google hasta que le pongan una.
-export async function loginOrCreateWithGoogle(email: string, name?: string) {
+export async function loginOrCreateWithGoogle(email: string, name?: string, avatarUrl?: string) {
   const pool = DB.getPool();
 
   const existing = await pool.query(
@@ -128,16 +128,20 @@ export async function loginOrCreateWithGoogle(email: string, name?: string) {
   let user = existing.rows[0];
 
   if (user) {
+    // avatar_url se actualiza con el de Google en cada login (a diferencia del
+    // nombre, que solo se completa si estaba vacío) — así si la persona cambia
+    // su foto de perfil se refleja acá. Si Google no manda foto esta vez, se
+    // queda con la que ya había en vez de borrarla.
     await pool.query(
-      `update users set email_verified = true, name = coalesce(nullif(name, ''), $1) where id = $2`,
-      [name || null, user.id]
+      `update users set email_verified = true, name = coalesce(nullif(name, ''), $1), avatar_url = coalesce($3, avatar_url) where id = $2`,
+      [name || null, user.id, avatarUrl || null]
     );
   } else {
     const inserted = await pool.query(
-      `insert into users (email, password, name, email_verified)
-       values ($1, null, $2, true)
+      `insert into users (email, password, name, email_verified, avatar_url)
+       values ($1, null, $2, true, $3)
        returning id, email, name`,
-      [email, name || null]
+      [email, name || null, avatarUrl || null]
     );
     user = inserted.rows[0];
   }
@@ -150,7 +154,7 @@ export async function loginOrCreateWithGoogle(email: string, name?: string) {
 
   return {
     token,
-    user: { id: user.id, email: user.email, name: name || user.name || "" },
+    user: { id: user.id, email: user.email, name: name || user.name || "", avatarUrl: avatarUrl || "" },
   };
 }
 
@@ -158,7 +162,7 @@ export async function getUserById(userId: string) {
   const pool = DB.getPool();
 
   const result = await pool.query(
-    `select id, email, name, email_verified from users where id = $1 limit 1`,
+    `select id, email, name, email_verified, avatar_url from users where id = $1 limit 1`,
     [userId]
   );
 

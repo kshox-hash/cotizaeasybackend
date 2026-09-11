@@ -19,10 +19,11 @@ if (googleAuthEnabled) {
         try {
           const email = profile.emails?.[0]?.value;
           const name = profile.displayName;
+          const avatarUrl = profile.photos?.[0]?.value;
           if (!email) {
             return done(new Error("Google no devolvió un correo"));
           }
-          const result = await loginOrCreateWithGoogle(email, name);
+          const result = await loginOrCreateWithGoogle(email, name, avatarUrl);
           return done(null, result);
         } catch (error) {
           return done(error as Error);

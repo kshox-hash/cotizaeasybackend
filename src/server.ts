@@ -165,6 +165,7 @@ async function initUsersTable(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_expires_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_hash TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
   `);
 }
 

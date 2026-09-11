@@ -93,7 +93,7 @@ export async function meController(req: Request, res: Response) {
     const subscription = await getSubscriptionState(userId);
     return res.json({
       ok: true,
-      user: { id: user.id, email: user.email, name: user.name || "", emailVerified: user.email_verified },
+      user: { id: user.id, email: user.email, name: user.name || "", emailVerified: user.email_verified, avatarUrl: user.avatar_url || "" },
       subscription,
     });
   } catch (error: any) {
@@ -234,7 +234,7 @@ export function googleStartController(req: Request, res: Response, next: NextFun
 // req.user (lo puso la estrategia). Se manda todo por query string al frontend, que
 // lo toma y arma la sesión igual que con /auth/login.
 export async function googleCallbackController(req: Request, res: Response) {
-  const authUser = req.user as { token: string; user: { id: string; email: string; name: string } } | undefined;
+  const authUser = req.user as { token: string; user: { id: string; email: string; name: string; avatarUrl?: string } } | undefined;
   if (!authUser?.token || !authUser?.user) {
     return res.redirect(`${FRONTEND_URL}/login?error=google`);
   }
@@ -243,6 +243,7 @@ export async function googleCallbackController(req: Request, res: Response) {
     userId: authUser.user.id,
     email: authUser.user.email,
     name: authUser.user.name ?? "",
+    avatarUrl: authUser.user.avatarUrl ?? "",
   });
   return res.redirect(`${WEB_CALLBACK_URL}?${params.toString()}`);
 }

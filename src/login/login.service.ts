@@ -137,9 +137,13 @@ export async function loginOrCreateWithGoogle(email: string, name?: string, avat
       [name || null, user.id, avatarUrl || null]
     );
   } else {
+    // trial_ends_at no tiene default en la columna (a propósito — el registro con
+    // contraseña también lo fija a mano) — sin esto queda NULL y getSubscriptionState
+    // trata "sin fecha de trial" como "sin trial activo", bloqueando la cuenta
+    // recién creada de inmediato en vez de darle los 2 días.
     const inserted = await pool.query(
-      `insert into users (email, password, name, email_verified, avatar_url)
-       values ($1, null, $2, true, $3)
+      `insert into users (email, password, name, email_verified, avatar_url, trial_ends_at)
+       values ($1, null, $2, true, $3, now() + interval '2 days')
        returning id, email, name`,
       [email, name || null, avatarUrl || null]
     );

@@ -2,9 +2,31 @@ import { Request, Response } from "express";
 import { companyProfileService } from "./company_profile.service";
 import { companyProfileRepository } from "./company_profile_repository";
 import { isSupportedCurrency, taxNameForCurrency } from "../../utils/format";
-import { QuoteLayoutBlock, QuoteLayoutBlockId } from "../quotes/quote.types";
+import { QuoteCustomFieldDef, QuoteCustomFieldZone, QuoteLayoutBlock, QuoteLayoutBlockId } from "../quotes/quote.types";
 
 const VALID_BLOCK_IDS: QuoteLayoutBlockId[] = ["client", "notes", "items", "terms", "signature", "footer"];
+const VALID_FIELD_ZONES: QuoteCustomFieldZone[] = ["client", "meta", "footer"];
+const MAX_CUSTOM_FIELDS = 12;
+
+function sanitizeQuoteCustomFields(raw: unknown): QuoteCustomFieldDef[] {
+  if (!Array.isArray(raw)) throw new Error("Los campos personalizados no tienen un formato válido");
+  if (raw.length > MAX_CUSTOM_FIELDS) throw new Error(`Como máximo ${MAX_CUSTOM_FIELDS} campos personalizados`);
+  const seen = new Set<string>();
+  return raw.map((f): QuoteCustomFieldDef => {
+    const zone = f?.zone;
+    if (!VALID_FIELD_ZONES.includes(zone)) throw new Error(`Zona desconocida: ${zone}`);
+    const title = String(f?.title ?? "").trim().slice(0, 60);
+    if (!title) throw new Error("Cada campo necesita un título");
+    // El id lo manda el cliente (se genera al crear el campo en el editor) — se
+    // valida el formato y la unicidad, pero no se confía más allá de eso, ya
+    // que también es la clave que se usa para leer su valor desde extraFields.
+    const id = String(f?.id ?? "").trim();
+    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(id)) throw new Error("Id de campo inválido");
+    if (seen.has(id)) throw new Error(`Campo repetido: ${id}`);
+    seen.add(id);
+    return { id, title, zone };
+  });
+}
 
 function sanitizeQuoteLayout(raw: unknown): QuoteLayoutBlock[] {
   if (!Array.isArray(raw)) throw new Error("El diseño de la cotización no tiene un formato válido");
@@ -142,6 +164,29 @@ export const companyProfileController = {
     } catch (error) {
       console.error("[companyProfile] updateQuoteLayout:", error);
       return res.status(500).json({ ok: false, message: "Error guardando el diseño de la cotización" });
+    }
+  },
+
+  async updateCustomFields(
+    req: Request<unknown, unknown, { fields?: unknown }>,
+    res: Response
+  ): Promise<Response> {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ ok: false, message: "Usuario no autenticado" });
+      }
+      let fields: QuoteCustomFieldDef[];
+      try {
+        fields = sanitizeQuoteCustomFields(req.body?.fields);
+      } catch (err) {
+        return res.status(400).json({ ok: false, message: err instanceof Error ? err.message : "Campos inválidos" });
+      }
+      await companyProfileRepository.updateCustomFields(userId, fields);
+      return res.json({ ok: true, fields });
+    } catch (error) {
+      console.error("[companyProfile] updateCustomFields:", error);
+      return res.status(500).json({ ok: false, message: "Error guardando los campos personalizados" });
     }
   },
 };

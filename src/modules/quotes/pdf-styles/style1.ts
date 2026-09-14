@@ -182,6 +182,15 @@ export function generateStyle1(
       const layout = input.layout && input.layout.length ? input.layout : DEFAULT_QUOTE_LAYOUT;
       const blockOf = (id: string) => layout.find(b => b.id === id) || DEFAULT_QUOTE_LAYOUT.find(b => b.id === id)!;
 
+      // Campos definidos por el usuario (Configuración → Campos personalizados).
+      // El VALOR viaja dentro de extraFields con clave `cf_<id>` — mismo canal
+      // que ya está cableado para todo (borrador, preview, envío, historial).
+      const customFieldsInZone = (zone: "client" | "meta" | "footer"): { title: string; value: string }[] =>
+        (input.customFields || [])
+          .filter(f => f.zone === zone)
+          .map(f => ({ title: f.title, value: (input.extraFields?.[`cf_${f.id}`] || "").trim() }))
+          .filter(f => f.value);
+
       const renderClient = (sy: number): number => {
         const block = blockOf("client");
         let cy = sy;
@@ -202,7 +211,18 @@ export function generateStyle1(
            .text(clientText, M, cy, { width: LEFT_W });
         doc.fillColor(ink).font("Helvetica").fontSize(9)
            .text(brand, RIGHT_X, cy, { width: RIGHT_W });
-        return cy + Math.max(clientH, 13) + 14;
+        cy += Math.max(clientH, 13) + 14;
+
+        const extraClientFields = customFieldsInZone("client");
+        extraClientFields.forEach(({ title, value }) => {
+          cy = ensureSpace(cy, 30);
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+             .text(`${title}: `, M, cy, { continued: true, width: CW })
+             .font("Helvetica").fillColor(inkSub).text(value);
+          cy += strH(`${title}: ${value}`, "Helvetica", 8, CW) + 4;
+        });
+
+        return cy;
       };
 
       const renderNotes = (sy: number): number => {
@@ -263,7 +283,17 @@ export function generateStyle1(
           || `Si desea realizar alguna consulta con respecto a esta cotización, póngase en contacto con ${brand}.`;
         doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
            .text(contactText, M, cy, { width: CW, align: "center" });
-        return cy + 14;
+        cy += 14;
+
+        const extraFooterFields = customFieldsInZone("footer");
+        extraFooterFields.forEach(({ title, value }) => {
+          cy = ensureSpace(cy, 24);
+          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+             .text(`${title}: ${value}`, M, cy, { width: CW, align: "center" });
+          cy += strH(`${title}: ${value}`, "Helvetica", 7.5, CW) + 4;
+        });
+
+        return cy;
       };
 
       const renderItems = (sy: number): number => {
@@ -299,6 +329,7 @@ export function generateStyle1(
             break;
         }
         if (ex.notes) metaCols.push(["NOTAS", ex.notes]);
+        customFieldsInZone("meta").forEach(({ title, value }) => metaCols.push([title.toUpperCase(), value]));
 
         if (metaCols.length > 0) {
           cy += 4;

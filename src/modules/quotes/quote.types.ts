@@ -13,6 +13,14 @@ export const TEMPLATE_LABELS: Record<QuoteTemplateType, string> = {
   rapida:       "Cotización",
 };
 
+export type QuoteCustomFieldZone = "client" | "meta" | "footer";
+
+export type QuoteCustomFieldDef = {
+  id: string;
+  title: string;
+  zone: QuoteCustomFieldZone;
+};
+
 export type QuoteLayoutBlockId = "client" | "notes" | "items" | "terms" | "signature" | "footer";
 
 export type QuoteLayoutBlock = {
@@ -85,7 +93,13 @@ export type QuotePdfInput = {
     bookingDeposit?: string;
     cancellationPolicy?: string;
     notes?: string;
+    /** Valores de campos personalizados (ver customFields), con clave `cf_<id>`. */
+    [key: string]: string | undefined;
   };
   /** Plantilla de orden/títulos/visibilidad de secciones (solo style1 por ahora). Sin esto, se usa DEFAULT_QUOTE_LAYOUT. */
   layout?: QuoteLayoutBlock[];
+  /** Campos definidos por el usuario (título + zona). El VALOR de cada uno viaja
+   * dentro de extraFields con la clave `cf_<id>` — reutiliza el mismo canal ya
+   * cableado (borrador, preview, envío, historial) en vez de uno nuevo. */
+  customFields?: QuoteCustomFieldDef[];
 };

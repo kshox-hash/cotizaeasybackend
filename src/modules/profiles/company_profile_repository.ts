@@ -24,6 +24,7 @@ const initBusinessProfilesTable = async (): Promise<void> => {
     ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0;
     ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS tax_label TEXT;
     ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS quote_layout JSONB;
+    ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS quote_custom_fields JSONB;
   `);
 };
 
@@ -31,7 +32,7 @@ const getByUserId = async (userId: string): Promise<CompanyProfile | null> => {
   const pool = DB.getPool();
   const query = `
     SELECT id, user_id, business_name, rut, city, address, phone, brand_color,
-           description, quote_logo_url, quote_style, quote_accent_color, quote_layout, currency,
+           description, quote_logo_url, quote_style, quote_accent_color, quote_layout, quote_custom_fields, currency,
            tax_rate, tax_label,
            created_at, updated_at
     FROM business_profiles
@@ -60,7 +61,7 @@ const upsert = async (input: CompanyProfileInput): Promise<CompanyProfile> => {
       description = EXCLUDED.description,
       updated_at = NOW()
     RETURNING id, user_id, business_name, rut, city, address, phone, brand_color,
-              description, quote_logo_url, quote_style, quote_accent_color, quote_layout, currency,
+              description, quote_logo_url, quote_style, quote_accent_color, quote_layout, quote_custom_fields, currency,
               tax_rate, tax_label,
               created_at, updated_at
   `;
@@ -119,6 +120,14 @@ const updateQuoteLayout = async (userId: string, layout: unknown): Promise<void>
   );
 };
 
+const updateCustomFields = async (userId: string, fields: unknown): Promise<void> => {
+  const pool = DB.getPool();
+  await pool.query(
+    `UPDATE business_profiles SET quote_custom_fields = $1, updated_at = NOW() WHERE user_id = $2`,
+    [JSON.stringify(fields), userId]
+  );
+};
+
 export const companyProfileRepository = {
   initBusinessProfilesTable,
   getByUserId,
@@ -126,4 +135,5 @@ export const companyProfileRepository = {
   updateQuoteLogo,
   updateQuoteConfig,
   updateQuoteLayout,
+  updateCustomFields,
 };

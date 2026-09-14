@@ -7,7 +7,6 @@ const router = Router();
 router.get("/company-profile/me", authMiddleware, companyProfileController.getMe);
 router.post("/company-profile/me", authMiddleware, companyProfileController.upsertMe);
 router.post("/company-profile/me/quote-config", authMiddleware, companyProfileController.updateQuoteConfig);
-router.post("/company-profile/me/quote-layout", authMiddleware, companyProfileController.updateQuoteLayout);
 router.post("/company-profile/me/quote-fields", authMiddleware, companyProfileController.updateCustomFields);
 
 export default router;

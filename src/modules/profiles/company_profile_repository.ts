@@ -112,14 +112,6 @@ const updateQuoteConfig = async (
   );
 };
 
-const updateQuoteLayout = async (userId: string, layout: unknown): Promise<void> => {
-  const pool = DB.getPool();
-  await pool.query(
-    `UPDATE business_profiles SET quote_layout = $1, updated_at = NOW() WHERE user_id = $2`,
-    [JSON.stringify(layout), userId]
-  );
-};
-
 const updateCustomFields = async (userId: string, fields: unknown): Promise<void> => {
   const pool = DB.getPool();
   await pool.query(
@@ -134,6 +126,5 @@ export const companyProfileRepository = {
   upsert,
   updateQuoteLogo,
   updateQuoteConfig,
-  updateQuoteLayout,
   updateCustomFields,
 };

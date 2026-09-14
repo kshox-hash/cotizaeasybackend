@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { QuotePdfInput } from "../quote.types";
+import { QuotePdfInput, resolveCustomFields } from "../quote.types";
 
 // Estilo 4 — Moderno colorido: header bold, método de pago, consideraciones
 export function generateStyle4(
@@ -112,6 +112,15 @@ export function generateStyle4(
          .rect(M, y, field1W, fieldH).stroke()
          .rect(field2X, y, field2W, fieldH).stroke();
       y += fieldH + 14;
+
+      // Campos personalizados (Configuración → Campos personalizados) de la zona "cliente".
+      resolveCustomFields(input, "client").forEach(({ title, value }) => {
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+           .text(`${title}: `, M, y, { continued: true, width: CW })
+           .font("Helvetica").fillColor(inkSub).text(value);
+        doc.font("Helvetica").fontSize(8);
+        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      });
 
       // ── Items table ───────────────────────────────────────────────────────────
       const qW = 44, dW = 231, pW = 100, mW = CW - qW - dW - pW;
@@ -235,6 +244,20 @@ export function generateStyle4(
       });
       y += BOX_H + 18;
 
+      // Campos personalizados (zona "información adicional")
+      const metaFields = resolveCustomFields(input, "meta");
+      if (metaFields.length) {
+        y = ensureSpace(y, 20 * metaFields.length + 10);
+        metaFields.forEach(({ title, value }) => {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+             .text(`${title}: `, M, y, { continued: true, width: CW })
+             .font("Helvetica").fillColor(inkSub).text(value);
+          doc.font("Helvetica").fontSize(8);
+          y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+        });
+        y += 6;
+      }
+
       // ── Método de pago — checkboxes ───────────────────────────────────────────
       y = ensureSpace(y, 52);
       doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
@@ -279,6 +302,15 @@ export function generateStyle4(
       y += 10;
       doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
          .text(`${brand}  ·  ${qNumber}  ·  ${issueDate}  ·  Documento generado automáticamente`, M, y, { width: CW, align: "center" });
+      y += 14;
+
+      // Campos personalizados (zona "pie de página")
+      resolveCustomFields(input, "footer").forEach(({ title, value }) => {
+        y = ensureSpace(y, 20);
+        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+           .text(`${title}: ${value}`, M, y, { width: CW, align: "center" });
+        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      });
 
       doc.end();
       stream.on("finish", () => resolve({ fileName, filePath }));

@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { QuotePdfInput } from "../quote.types";
+import { QuotePdfInput, resolveCustomFields } from "../quote.types";
 
 // Estilo 3 — Franja de color, COTIZACIÓN centrado, secciones destinación/autorización
 export function generateStyle3(
@@ -134,6 +134,15 @@ export function generateStyle3(
          .rect(PANEL2X, y, PANEL_W, panelH).stroke();
       y += panelH + 18;
 
+      // Campos personalizados (Configuración → Campos personalizados) de la zona "cliente".
+      resolveCustomFields(input, "client").forEach(({ title, value }) => {
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+           .text(`${title}: `, M, y, { continued: true, width: CW })
+           .font("Helvetica").fillColor(inkSub).text(value);
+        doc.font("Helvetica").fontSize(8);
+        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      });
+
       // ── Items table ───────────────────────────────────────────────────────────
       const qW = 44, dW = 231, pW = 100, mW = CW - qW - dW - pW;
       const qX = M, dX = M + qW, pX = dX + dW, mX = pX + pW;
@@ -239,6 +248,20 @@ export function generateStyle3(
       });
       y += 18;
 
+      // Campos personalizados (zona "información adicional")
+      const metaFields = resolveCustomFields(input, "meta");
+      if (metaFields.length) {
+        y = ensureSpace(y, 20 * metaFields.length + 10);
+        metaFields.forEach(({ title, value }) => {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+             .text(`${title}: `, M, y, { continued: true, width: CW })
+             .font("Helvetica").fillColor(inkSub).text(value);
+          doc.font("Helvetica").fontSize(8);
+          y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+        });
+        y += 6;
+      }
+
       // ── DESTINACIÓN + AUTORIZACIÓN side-by-side ───────────────────────────────
       y = ensureSpace(y, 80);
       const DEST_W = Math.floor(CW / 2) - 6;
@@ -294,6 +317,15 @@ export function generateStyle3(
 
       doc.fillColor(inkDim).font("Helvetica").fontSize(7)
          .text(`${brand}  ·  ${qNumber}  ·  ${issueDate}`, M, y, { width: CW, align: "center" });
+      y += 14;
+
+      // Campos personalizados (zona "pie de página")
+      resolveCustomFields(input, "footer").forEach(({ title, value }) => {
+        y = ensureSpace(y, 20);
+        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+           .text(`${title}: ${value}`, M, y, { width: CW, align: "center" });
+        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      });
 
       doc.end();
       stream.on("finish", () => resolve({ fileName, filePath }));

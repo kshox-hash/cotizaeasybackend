@@ -103,3 +103,13 @@ export type QuotePdfInput = {
    * cableado (borrador, preview, envío, historial) en vez de uno nuevo. */
   customFields?: QuoteCustomFieldDef[];
 };
+
+/** Campos personalizados de una zona con su valor ya resuelto (y sin los que
+ * quedaron vacíos) — usado por los 5 estilos de PDF para no repetir el mismo
+ * filter/map/trim cinco veces. */
+export function resolveCustomFields(input: QuotePdfInput, zone: QuoteCustomFieldZone): { title: string; value: string }[] {
+  return (input.customFields || [])
+    .filter((f) => f.zone === zone)
+    .map((f) => ({ title: f.title, value: (input.extraFields?.[`cf_${f.id}`] || "").trim() }))
+    .filter((f) => f.value);
+}

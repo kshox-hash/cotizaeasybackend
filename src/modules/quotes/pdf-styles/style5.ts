@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { QuotePdfInput } from "../quote.types";
+import { QuotePdfInput, resolveCustomFields } from "../quote.types";
 
 // Estilo 5 — Sidebar oscuro con info de empresa, contenido limpio a la derecha
 export function generateStyle5(
@@ -121,6 +121,33 @@ export function generateStyle5(
       // Draw sidebar on first page
       drawSidebar();
 
+      // Constantes de la tabla de ítems y ensureSpace — definidas acá (antes de
+      // que exista contenido) porque las zonas de campos personalizados, más
+      // abajo, también pueden necesitar paginar antes de llegar a la tabla.
+      const qW = 36, dW = Math.floor(CON_W * 0.44), pW = 80, mW = CON_W - qW - dW - pW;
+      const qX = CON_X, dX = CON_X + qW, pX = dX + dW, mX = pX + pW;
+      const cP = 6;
+      const TH = 22;
+
+      const drawHead = (sy: number) => {
+        doc.rect(CON_X, sy, CON_W, TH).fill(accent);
+        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(7.5)
+           .text("CANT",        qX + 2,  sy + 7, { width: qW - 4,      align: "center" })
+           .text("DESCRIPCIÓN", dX + cP, sy + 7, { width: dW - cP * 2 })
+           .text("PRECIO",      pX + cP, sy + 7, { width: pW - cP * 2, align: "right" })
+           .text("MONTO",       mX + cP, sy + 7, { width: mW - cP * 2, align: "right" });
+        return sy + TH;
+      };
+
+      const ensureSpace = (cy: number, need: number, withH = false) => {
+        if (cy + need <= PH - 48) return cy;
+        doc.addPage();
+        drawSidebar();
+        let ny = 36;
+        if (withH) ny = drawHead(ny);
+        return ny;
+      };
+
       // ── Content area ─────────────────────────────────────────────────────────
       let y = 36;
 
@@ -150,6 +177,15 @@ export function generateStyle5(
       });
       y += 8;
 
+      // Campos personalizados (Configuración → Campos personalizados) de la zona "cliente".
+      resolveCustomFields(input, "client").forEach(({ title, value }) => {
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+           .text(`${title}: `, CON_X, y, { continued: true, width: CON_W })
+           .font("Helvetica").fillColor(inkSub).text(value);
+        doc.font("Helvetica").fontSize(8);
+        y += doc.heightOfString(`${title}: ${value}`, { width: CON_W }) + 4;
+      });
+
       // Validity badge
       doc.rect(CON_X, y, CON_W, 20).fill(rowAlt);
       doc.strokeColor(border).lineWidth(0.4).rect(CON_X, y, CON_W, 20).stroke();
@@ -158,6 +194,20 @@ export function generateStyle5(
       doc.fillColor(ink).font("Helvetica").fontSize(8.5)
          .text("30 días desde la emisión", CON_X + 76, y + 6, { width: CON_W - 82, lineBreak: false });
       y += 20 + 14;
+
+      // Campos personalizados (zona "información adicional")
+      const metaFields = resolveCustomFields(input, "meta");
+      if (metaFields.length) {
+        y = ensureSpace(y, 20 * metaFields.length + 10);
+        metaFields.forEach(({ title, value }) => {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+             .text(`${title}: `, CON_X, y, { continued: true, width: CON_W })
+             .font("Helvetica").fillColor(inkSub).text(value);
+          doc.font("Helvetica").fontSize(8);
+          y += doc.heightOfString(`${title}: ${value}`, { width: CON_W }) + 4;
+        });
+        y += 6;
+      }
 
       // Notes
       if (cust.notes?.trim()) {
@@ -171,30 +221,6 @@ export function generateStyle5(
       }
 
       // ── Items table ───────────────────────────────────────────────────────────
-      const qW = 36, dW = Math.floor(CON_W * 0.44), pW = 80, mW = CON_W - qW - dW - pW;
-      const qX = CON_X, dX = CON_X + qW, pX = dX + dW, mX = pX + pW;
-      const cP = 6;
-      const TH = 22;
-
-      const drawHead = (sy: number) => {
-        doc.rect(CON_X, sy, CON_W, TH).fill(accent);
-        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(7.5)
-           .text("CANT",        qX + 2,  sy + 7, { width: qW - 4,      align: "center" })
-           .text("DESCRIPCIÓN", dX + cP, sy + 7, { width: dW - cP * 2 })
-           .text("PRECIO",      pX + cP, sy + 7, { width: pW - cP * 2, align: "right" })
-           .text("MONTO",       mX + cP, sy + 7, { width: mW - cP * 2, align: "right" });
-        return sy + TH;
-      };
-
-      const ensureSpace = (cy: number, need: number, withH = false) => {
-        if (cy + need <= PH - 48) return cy;
-        doc.addPage();
-        drawSidebar();
-        let ny = 36;
-        if (withH) ny = drawHead(ny);
-        return ny;
-      };
-
       const tableTop = y;
       y = drawHead(y);
 
@@ -279,6 +305,15 @@ export function generateStyle5(
       y += 16;
       doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
          .text(`${brand}  ·  ${qNumber}  ·  ${issueDate}`, CON_X, y, { width: CON_W, align: "center" });
+      y += 14;
+
+      // Campos personalizados (zona "pie de página")
+      resolveCustomFields(input, "footer").forEach(({ title, value }) => {
+        y = ensureSpace(y, 20);
+        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+           .text(`${title}: ${value}`, CON_X, y, { width: CON_W, align: "center" });
+        y += doc.heightOfString(`${title}: ${value}`, { width: CON_W }) + 4;
+      });
 
       doc.end();
       stream.on("finish", () => resolve({ fileName, filePath }));

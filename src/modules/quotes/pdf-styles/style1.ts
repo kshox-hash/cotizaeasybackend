@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { DEFAULT_QUOTE_LAYOUT, QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS } from "../quote.types";
+import { DEFAULT_QUOTE_LAYOUT, QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS, resolveCustomFields } from "../quote.types";
 
 export function generateStyle1(
   input: QuotePdfInput,
@@ -183,13 +183,7 @@ export function generateStyle1(
       const blockOf = (id: string) => layout.find(b => b.id === id) || DEFAULT_QUOTE_LAYOUT.find(b => b.id === id)!;
 
       // Campos definidos por el usuario (Configuración → Campos personalizados).
-      // El VALOR viaja dentro de extraFields con clave `cf_<id>` — mismo canal
-      // que ya está cableado para todo (borrador, preview, envío, historial).
-      const customFieldsInZone = (zone: "client" | "meta" | "footer"): { title: string; value: string }[] =>
-        (input.customFields || [])
-          .filter(f => f.zone === zone)
-          .map(f => ({ title: f.title, value: (input.extraFields?.[`cf_${f.id}`] || "").trim() }))
-          .filter(f => f.value);
+      const customFieldsInZone = (zone: "client" | "meta" | "footer") => resolveCustomFields(input, zone);
 
       const renderClient = (sy: number): number => {
         const block = blockOf("client");

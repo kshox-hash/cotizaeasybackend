@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { QuotePdfInput } from "../quote.types";
+import { QuotePdfInput, resolveCustomFields } from "../quote.types";
 
 // Estilo 2 — Monograma / Logo block, detalle de cuotas, firma
 export function generateStyle2(
@@ -151,6 +151,15 @@ export function generateStyle2(
          .rect(COL2X, y, COL_W, maxRows * 16).stroke();
       y += maxRows * 16 + 18;
 
+      // Campos personalizados (Configuración → Campos personalizados) de la zona "cliente".
+      resolveCustomFields(input, "client").forEach(({ title, value }) => {
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+           .text(`${title}: `, M, y, { continued: true, width: CW })
+           .font("Helvetica").fillColor(inkSub).text(value);
+        doc.font("Helvetica").fontSize(8);
+        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      });
+
       // ── Items table ──────────────────────────────────────────────────────────
       // Columns: CANT(40) | DESCRIPCIÓN(215) | PRECIO(90) | DTO(45) | MONTO(125)
       const cntW = 40, dscW = 215, prcW = 90, dtoW = 45, amtW = CW - cntW - dscW - prcW - dtoW;
@@ -278,6 +287,20 @@ export function generateStyle2(
       });
       y += 20;
 
+      // ── Campos personalizados (zona "información adicional") ──────────────────
+      const metaFields = resolveCustomFields(input, "meta");
+      if (metaFields.length) {
+        y = ensureSpace(y, 20 * metaFields.length + 10);
+        metaFields.forEach(({ title, value }) => {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+             .text(`${title}: `, M, y, { continued: true, width: CW })
+             .font("Helvetica").fillColor(inkSub).text(value);
+          doc.font("Helvetica").fontSize(8);
+          y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+        });
+        y += 6;
+      }
+
       // ── Notes ────────────────────────────────────────────────────────────────
       const noteText = cust.notes?.trim() || (input.extraFields?.paymentConditions ?? "");
       if (noteText) {
@@ -300,6 +323,15 @@ export function generateStyle2(
          .text("Firma autorizada", sigX, y + 32, { width: 190, align: "center" });
       doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
          .text(brand, sigX, y + 44, { width: 190, align: "center" });
+      y += 60;
+
+      // ── Campos personalizados (zona "pie de página") ───────────────────────────
+      resolveCustomFields(input, "footer").forEach(({ title, value }) => {
+        y = ensureSpace(y, 20);
+        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+           .text(`${title}: ${value}`, M, y, { width: CW, align: "center" });
+        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      });
 
       doc.end();
       stream.on("finish", () => resolve({ fileName, filePath }));

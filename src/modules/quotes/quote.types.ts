@@ -13,6 +13,30 @@ export const TEMPLATE_LABELS: Record<QuoteTemplateType, string> = {
   rapida:       "Cotización",
 };
 
+export type QuoteLayoutBlockId = "client" | "notes" | "items" | "terms" | "signature" | "footer";
+
+export type QuoteLayoutBlock = {
+  id: QuoteLayoutBlockId;
+  title: string;
+  visible: boolean;
+  /** Solo aplica a "terms" y "footer" — texto libre editado por el usuario. */
+  text?: string;
+};
+
+// Orden y textos por defecto — deben reproducir exactamente lo que ya dibuja
+// style1.ts hoy, para que una plantilla no guardada (usuarios existentes) no
+// cambie el PDF de nadie.
+export const DEFAULT_QUOTE_LAYOUT: QuoteLayoutBlock[] = [
+  { id: "client",    title: "Cotización para",                visible: true },
+  { id: "notes",     title: "Comentarios o instrucciones",    visible: true },
+  { id: "items",     title: "Detalle de servicios",           visible: true },
+  { id: "terms",     title: "Términos y condiciones",         visible: false, text: "" },
+  { id: "signature", title: "Firma",                          visible: false },
+  // text vacío = usar la frase de contacto original con la marca interpolada
+  // (ver renderFooterBlock en style1.ts), no un placeholder real.
+  { id: "footer",    title: "¡Gracias por su preferencia!",   visible: true, text: "" },
+];
+
 export type QuotePdfInput = {
   token: string;
   brand: string;
@@ -62,4 +86,6 @@ export type QuotePdfInput = {
     cancellationPolicy?: string;
     notes?: string;
   };
+  /** Plantilla de orden/títulos/visibilidad de secciones (solo style1 por ahora). Sin esto, se usa DEFAULT_QUOTE_LAYOUT. */
+  layout?: QuoteLayoutBlock[];
 };

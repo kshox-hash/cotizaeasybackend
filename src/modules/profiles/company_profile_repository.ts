@@ -23,6 +23,7 @@ const initBusinessProfilesTable = async (): Promise<void> => {
     ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'CLP';
     ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0;
     ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS tax_label TEXT;
+    ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS quote_layout JSONB;
   `);
 };
 
@@ -30,7 +31,7 @@ const getByUserId = async (userId: string): Promise<CompanyProfile | null> => {
   const pool = DB.getPool();
   const query = `
     SELECT id, user_id, business_name, rut, city, address, phone, brand_color,
-           description, quote_logo_url, quote_style, quote_accent_color, currency,
+           description, quote_logo_url, quote_style, quote_accent_color, quote_layout, currency,
            tax_rate, tax_label,
            created_at, updated_at
     FROM business_profiles
@@ -59,7 +60,7 @@ const upsert = async (input: CompanyProfileInput): Promise<CompanyProfile> => {
       description = EXCLUDED.description,
       updated_at = NOW()
     RETURNING id, user_id, business_name, rut, city, address, phone, brand_color,
-              description, quote_logo_url, quote_style, quote_accent_color, currency,
+              description, quote_logo_url, quote_style, quote_accent_color, quote_layout, currency,
               tax_rate, tax_label,
               created_at, updated_at
   `;
@@ -110,10 +111,19 @@ const updateQuoteConfig = async (
   );
 };
 
+const updateQuoteLayout = async (userId: string, layout: unknown): Promise<void> => {
+  const pool = DB.getPool();
+  await pool.query(
+    `UPDATE business_profiles SET quote_layout = $1, updated_at = NOW() WHERE user_id = $2`,
+    [JSON.stringify(layout), userId]
+  );
+};
+
 export const companyProfileRepository = {
   initBusinessProfilesTable,
   getByUserId,
   upsert,
   updateQuoteLogo,
   updateQuoteConfig,
+  updateQuoteLayout,
 };

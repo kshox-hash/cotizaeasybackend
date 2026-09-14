@@ -2,6 +2,7 @@ import fs from "fs";
 import { generateQuotePdf } from "./quote.service";
 import { sendQuoteEmail } from "./quote-email.service";
 import { saveQuoteHistory } from "./quote-history/quote-history.repository";
+import { QuoteLayoutBlock } from "./quote.types";
 
 export type QuoteLine = {
   name: string;
@@ -65,6 +66,7 @@ export async function dispatchQuoteToClients(params: {
   taxLabel?: string;
   message?: string;
   extraFields?: Record<string, any>;
+  layout?: QuoteLayoutBlock[];
 }): Promise<DispatchResult[]> {
   const results: DispatchResult[] = [];
 
@@ -96,6 +98,7 @@ export async function dispatchQuoteToClients(params: {
         taxAmount: params.taxAmount,
         taxLabel: params.taxLabel,
         extraFields: params.extraFields,
+        layout: params.layout,
       });
       filePath = generated.filePath;
 

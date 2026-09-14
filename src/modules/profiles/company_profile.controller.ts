@@ -2,6 +2,37 @@ import { Request, Response } from "express";
 import { companyProfileService } from "./company_profile.service";
 import { companyProfileRepository } from "./company_profile_repository";
 import { isSupportedCurrency, taxNameForCurrency } from "../../utils/format";
+import { QuoteLayoutBlock, QuoteLayoutBlockId } from "../quotes/quote.types";
+
+const VALID_BLOCK_IDS: QuoteLayoutBlockId[] = ["client", "notes", "items", "terms", "signature", "footer"];
+
+function sanitizeQuoteLayout(raw: unknown): QuoteLayoutBlock[] {
+  if (!Array.isArray(raw)) throw new Error("El diseño de la cotización no tiene un formato válido");
+  const seen = new Set<string>();
+  const blocks = raw.map((b): QuoteLayoutBlock => {
+    const id = b?.id;
+    if (!VALID_BLOCK_IDS.includes(id)) throw new Error(`Bloque desconocido: ${id}`);
+    if (seen.has(id)) throw new Error(`Bloque repetido: ${id}`);
+    seen.add(id);
+    const title = String(b?.title ?? "").trim().slice(0, 60);
+    if (!title) throw new Error("Cada bloque necesita un título");
+    const block: QuoteLayoutBlock = { id, title, visible: !!b?.visible };
+    if (id === "terms" || id === "footer") block.text = String(b?.text ?? "").slice(0, 4000);
+    return block;
+  });
+  // Los bloques fijos (cliente/detalle) no se pueden ocultar ni faltar — si el
+  // cliente/frontend los omite o los apaga, se fuerzan de vuelta acá, nunca
+  // se confía en eso solo del lado del cliente.
+  for (const id of ["client", "items"] as const) {
+    const b = blocks.find((x) => x.id === id);
+    if (!b) throw new Error(`Falta el bloque obligatorio: ${id}`);
+    b.visible = true;
+  }
+  if (VALID_BLOCK_IDS.some((id) => !blocks.find((b) => b.id === id))) {
+    throw new Error("Faltan bloques en el diseño");
+  }
+  return blocks;
+}
 
 type UpsertMeBody = {
   business_name: string;
@@ -88,6 +119,29 @@ export const companyProfileController = {
     } catch (error) {
       console.error("[companyProfile] updateQuoteConfig:", error);
       return res.status(500).json({ ok: false, message: "Error guardando configuración de cotizaciones" });
+    }
+  },
+
+  async updateQuoteLayout(
+    req: Request<unknown, unknown, { blocks?: unknown }>,
+    res: Response
+  ): Promise<Response> {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ ok: false, message: "Usuario no autenticado" });
+      }
+      let blocks: QuoteLayoutBlock[];
+      try {
+        blocks = sanitizeQuoteLayout(req.body?.blocks);
+      } catch (err) {
+        return res.status(400).json({ ok: false, message: err instanceof Error ? err.message : "Diseño inválido" });
+      }
+      await companyProfileRepository.updateQuoteLayout(userId, blocks);
+      return res.json({ ok: true, blocks });
+    } catch (error) {
+      console.error("[companyProfile] updateQuoteLayout:", error);
+      return res.status(500).json({ ok: false, message: "Error guardando el diseño de la cotización" });
     }
   },
 };

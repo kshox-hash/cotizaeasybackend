@@ -158,6 +158,7 @@ export const quoteSendController = {
         taxAmount,
         taxLabel: taxLabelOverride || profile?.tax_label || undefined,
         extraFields,
+        layout: profile?.quote_layout || undefined,
       });
       filePath = generated.filePath;
 
@@ -272,6 +273,7 @@ export const quoteSendController = {
         taxLabel: profile?.tax_label || undefined,
         message,
         extraFields,
+        layout: profile?.quote_layout || undefined,
       });
 
       const failed = results.filter((r) => !r.ok);

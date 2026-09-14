@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS } from "../quote.types";
+import { DEFAULT_QUOTE_LAYOUT, QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS } from "../quote.types";
 
 export function generateStyle1(
   input: QuotePdfInput,
@@ -174,217 +174,288 @@ export function generateStyle1(
       hLine(y, border, 0.8);
       y += 13;
 
-      doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
-         .text("COTIZACIÓN PARA:", M, y);
-      doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
-         .text("PREPARADO POR:", RIGHT_X, y);
-      y += 12;
+      // ── Bloques configurables ──────────────────────────────────────────
+      // Orden/títulos/visibilidad vienen del perfil (armados en Configuración
+      // → Diseño de cotización). Sin plantilla guardada se usa el layout por
+      // defecto, que reproduce el texto/orden que este estilo dibujaba antes
+      // de que este sistema existiera.
+      const layout = input.layout && input.layout.length ? input.layout : DEFAULT_QUOTE_LAYOUT;
+      const blockOf = (id: string) => layout.find(b => b.id === id) || DEFAULT_QUOTE_LAYOUT.find(b => b.id === id)!;
 
-      const clientLines: string[] = [];
-      if (cust.name?.trim())  clientLines.push(cust.name.trim());
-      if (cust.email?.trim()) clientLines.push(cust.email.trim());
-      if (cust.phone?.trim()) clientLines.push(`Tel: ${cust.phone.trim()}`);
-
-      const clientText = clientLines.join("\n") || "—";
-      const clientH = strH(clientText, "Helvetica", 9, LEFT_W);
-      doc.fillColor(ink).font("Helvetica").fontSize(9)
-         .text(clientText, M, y, { width: LEFT_W });
-      doc.fillColor(ink).font("Helvetica").fontSize(9)
-         .text(brand, RIGHT_X, y, { width: RIGHT_W });
-      y += Math.max(clientH, 13) + 14;
-
-      const noteText = cust.notes?.trim();
-      if (noteText) {
-        hLine(y, border, 0.4);
-        y += 10;
+      const renderClient = (sy: number): number => {
+        const block = blockOf("client");
+        let cy = sy;
         doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
-           .text("COMENTARIOS O INSTRUCCIONES:", M, y);
-        y += 12;
+           .text(`${block.title.toUpperCase()}:`, M, cy);
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text("PREPARADO POR:", RIGHT_X, cy);
+        cy += 12;
+
+        const clientLines: string[] = [];
+        if (cust.name?.trim())  clientLines.push(cust.name.trim());
+        if (cust.email?.trim()) clientLines.push(cust.email.trim());
+        if (cust.phone?.trim()) clientLines.push(`Tel: ${cust.phone.trim()}`);
+
+        const clientText = clientLines.join("\n") || "—";
+        const clientH = strH(clientText, "Helvetica", 9, LEFT_W);
+        doc.fillColor(ink).font("Helvetica").fontSize(9)
+           .text(clientText, M, cy, { width: LEFT_W });
+        doc.fillColor(ink).font("Helvetica").fontSize(9)
+           .text(brand, RIGHT_X, cy, { width: RIGHT_W });
+        return cy + Math.max(clientH, 13) + 14;
+      };
+
+      const renderNotes = (sy: number): number => {
+        const noteText = cust.notes?.trim();
+        if (!noteText) return sy;
+        const block = blockOf("notes");
+        let cy = sy;
+        hLine(cy, border, 0.4);
+        cy += 10;
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text(`${block.title.toUpperCase()}:`, M, cy);
+        cy += 12;
         doc.font("Helvetica").fontSize(9);
         const noteH = doc.heightOfString(noteText, { width: CW });
-        doc.fillColor(inkSub).text(noteText, M, y, { width: CW });
-        y += noteH + 10;
-      }
+        doc.fillColor(inkSub).text(noteText, M, cy, { width: CW });
+        return cy + noteH + 10;
+      };
 
-      const ex = input.extraFields || {};
-      const metaCols: [string, string][] = [];
+      const renderTerms = (sy: number): number => {
+        const block = blockOf("terms");
+        const text = block.text?.trim();
+        if (!block.visible || !text) return sy;
+        let cy = ensureSpace(sy, 40);
+        hLine(cy, border, 0.4);
+        cy += 10;
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text(`${block.title.toUpperCase()}:`, M, cy);
+        cy += 12;
+        doc.font("Helvetica").fontSize(8.5);
+        const h = doc.heightOfString(text, { width: CW });
+        doc.fillColor(inkSub).text(text, M, cy, { width: CW });
+        return cy + h + 10;
+      };
 
-      switch (tType) {
-        case "servicios":
-          if (ex.deliveryDate)      metaCols.push(["FECHA ENTREGA",       ex.deliveryDate]);
-          if (ex.paymentConditions) metaCols.push(["CONDICIONES DE PAGO", ex.paymentConditions]);
-          if (ex.exclusions)        metaCols.push(["NO INCLUYE",          ex.exclusions]);
-          break;
-        case "productos":
-          if (ex.deliveryTime)  metaCols.push(["TIEMPO DE ENTREGA",  ex.deliveryTime]);
-          if (ex.priceValidity) metaCols.push(["VALIDEZ DEL PRECIO", ex.priceValidity]);
-          break;
-        case "construccion":
-          if (ex.workAddress)     metaCols.push(["DIRECCIÓN DE OBRA",   ex.workAddress]);
-          if (ex.duration)        metaCols.push(["DURACIÓN ESTIMADA",   ex.duration]);
-          if (ex.paymentSchedule) metaCols.push(["CALENDARIO DE PAGOS", ex.paymentSchedule]);
-          break;
-        case "eventos":
-          if (ex.eventDate)          metaCols.push(["FECHA DEL EVENTO",      ex.eventDate]);
-          if (ex.bookingDeposit)     metaCols.push(["RESERVA REQUERIDA",     ex.bookingDeposit]);
-          if (ex.cancellationPolicy) metaCols.push(["POLÍTICA CANCELACIÓN",  ex.cancellationPolicy]);
-          break;
-      }
-      if (ex.notes) metaCols.push(["NOTAS", ex.notes]);
+      const renderSignature = (sy: number): number => {
+        const block = blockOf("signature");
+        if (!block.visible) return sy;
+        let cy = ensureSpace(sy, 60) + 26;
+        const SIG_W = 220;
+        doc.strokeColor(border).lineWidth(0.6)
+           .moveTo(M, cy).lineTo(M + SIG_W, cy).stroke();
+        cy += 8;
+        doc.fillColor(inkDim).font("Helvetica").fontSize(8)
+           .text(block.title, M, cy, { width: SIG_W });
+        return cy + 20;
+      };
 
-      if (metaCols.length > 0) {
-        y += 4;
-        const metaColW = Math.floor(CW / metaCols.length);
-        doc.rect(M, y, CW, 20).fill(accent);
-        metaCols.forEach(([label], i) => {
-          const cx = M + i * metaColW;
-          if (i > 0) {
-            doc.strokeColor("#FFFFFF40" as any).lineWidth(0.5)
-               .moveTo(cx, y).lineTo(cx, y + 20).stroke();
-          }
-          doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(7)
-             .text(label, cx + cPad, y + 7, { width: metaColW - cPad * 2, align: "center" });
-        });
-        y += 20;
+      const renderFooterBlock = (sy: number): number => {
+        const block = blockOf("footer");
+        if (!block.visible) return sy;
+        let cy = ensureSpace(sy, 48);
+        hLine(cy, border, 0.8);
+        cy += 12;
+        doc.fillColor(ink).font("Helvetica-Bold").fontSize(10)
+           .text(block.title.toUpperCase(), M, cy, { width: CW, align: "center" });
+        cy += 18;
+        const contactText = block.text?.trim()
+          || `Si desea realizar alguna consulta con respecto a esta cotización, póngase en contacto con ${brand}.`;
+        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+           .text(contactText, M, cy, { width: CW, align: "center" });
+        return cy + 14;
+      };
 
-        let maxValH = 16;
-        metaCols.forEach(([, value]) => {
-          doc.font("Helvetica").fontSize(8);
-          const h = doc.heightOfString(value, { width: metaColW - cPad * 2 });
-          if (h + 14 > maxValH) maxValH = Math.ceil(h) + 14;
-        });
+      const renderItems = (sy: number): number => {
+        const block = blockOf("items");
+        let cy = sy;
 
-        doc.rect(M, y, CW, maxValH).fill(rowAlt);
-        doc.strokeColor(border).lineWidth(0.5).rect(M, y, CW, maxValH).stroke();
-        metaCols.forEach(([, value], i) => {
-          const cx = M + i * metaColW;
-          if (i > 0) {
-            doc.strokeColor(border).lineWidth(0.3)
-               .moveTo(cx, y).lineTo(cx, y + maxValH).stroke();
-          }
-          doc.fillColor(inkSub).font("Helvetica").fontSize(8)
-             .text(value, cx + cPad, y + 7, { width: metaColW - cPad * 2, align: "center" });
-        });
-        y += maxValH + 12;
-      } else {
-        y += 8;
-      }
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text(`${block.title.toUpperCase()}`, M, cy);
+        cy += 14;
 
-      const tableStartY = y;
-      y = drawItemHead(y);
+        const ex = input.extraFields || {};
+        const metaCols: [string, string][] = [];
 
-      const lines = Array.isArray(input.lines) ? input.lines : [];
+        switch (tType) {
+          case "servicios":
+            if (ex.deliveryDate)      metaCols.push(["FECHA ENTREGA",       ex.deliveryDate]);
+            if (ex.paymentConditions) metaCols.push(["CONDICIONES DE PAGO", ex.paymentConditions]);
+            if (ex.exclusions)        metaCols.push(["NO INCLUYE",          ex.exclusions]);
+            break;
+          case "productos":
+            if (ex.deliveryTime)  metaCols.push(["TIEMPO DE ENTREGA",  ex.deliveryTime]);
+            if (ex.priceValidity) metaCols.push(["VALIDEZ DEL PRECIO", ex.priceValidity]);
+            break;
+          case "construccion":
+            if (ex.workAddress)     metaCols.push(["DIRECCIÓN DE OBRA",   ex.workAddress]);
+            if (ex.duration)        metaCols.push(["DURACIÓN ESTIMADA",   ex.duration]);
+            if (ex.paymentSchedule) metaCols.push(["CALENDARIO DE PAGOS", ex.paymentSchedule]);
+            break;
+          case "eventos":
+            if (ex.eventDate)          metaCols.push(["FECHA DEL EVENTO",      ex.eventDate]);
+            if (ex.bookingDeposit)     metaCols.push(["RESERVA REQUERIDA",     ex.bookingDeposit]);
+            if (ex.cancellationPolicy) metaCols.push(["POLÍTICA CANCELACIÓN",  ex.cancellationPolicy]);
+            break;
+        }
+        if (ex.notes) metaCols.push(["NOTAS", ex.notes]);
 
-      if (lines.length === 0) {
-        doc.rect(M, y, CW, 36).fill(white);
-        [qtyX + qtyW, dscX + dscW, prcX + prcW].forEach(x => {
-          doc.strokeColor(border).lineWidth(0.3)
-             .moveTo(x, y).lineTo(x, y + 36).stroke();
-        });
-        doc.strokeColor(border).lineWidth(0.4)
-           .moveTo(M, y + 36).lineTo(M + CW, y + 36).stroke();
-        doc.fillColor(inkDim).font("Helvetica").fontSize(9)
-           .text("Sin ítems seleccionados.", dscX + cPad, y + 12);
-        y += 36;
-      } else {
-        lines.forEach((line, idx) => {
-          const hasDesc  = !!line.description?.trim();
-          const itemColW = dscW - cPad * 2;
+        if (metaCols.length > 0) {
+          cy += 4;
+          const metaColW = Math.floor(CW / metaCols.length);
+          doc.rect(M, cy, CW, 20).fill(accent);
+          metaCols.forEach(([label], i) => {
+            const cx = M + i * metaColW;
+            if (i > 0) {
+              doc.strokeColor("#FFFFFF40" as any).lineWidth(0.5)
+                 .moveTo(cx, cy).lineTo(cx, cy + 20).stroke();
+            }
+            doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(7)
+               .text(label, cx + cPad, cy + 7, { width: metaColW - cPad * 2, align: "center" });
+          });
+          cy += 20;
 
-          doc.font("Helvetica-Bold").fontSize(9);
-          const nameH = doc.heightOfString(line.name || "—", { width: itemColW });
-          let descH = 0;
-          if (hasDesc) {
-            doc.font("Helvetica").fontSize(7.5);
-            descH = doc.heightOfString(line.description, { width: itemColW });
-          }
-          const rowH = Math.max(28, Math.ceil(nameH + (hasDesc ? descH + 4 : 0) + cPad * 2));
-          const fill  = idx % 2 === 0 ? white : rowAlt;
+          let maxValH = 16;
+          metaCols.forEach(([, value]) => {
+            doc.font("Helvetica").fontSize(8);
+            const h = doc.heightOfString(value, { width: metaColW - cPad * 2 });
+            if (h + 14 > maxValH) maxValH = Math.ceil(h) + 14;
+          });
 
-          y = ensureSpace(y, rowH + 60, true);
+          doc.rect(M, cy, CW, maxValH).fill(rowAlt);
+          doc.strokeColor(border).lineWidth(0.5).rect(M, cy, CW, maxValH).stroke();
+          metaCols.forEach(([, value], i) => {
+            const cx = M + i * metaColW;
+            if (i > 0) {
+              doc.strokeColor(border).lineWidth(0.3)
+                 .moveTo(cx, cy).lineTo(cx, cy + maxValH).stroke();
+            }
+            doc.fillColor(inkSub).font("Helvetica").fontSize(8)
+               .text(value, cx + cPad, cy + 7, { width: metaColW - cPad * 2, align: "center" });
+          });
+          cy += maxValH + 12;
+        } else {
+          cy += 8;
+        }
 
-          doc.rect(M, y, CW, rowH).fill(fill);
+        const tableStartY = cy;
+        cy = drawItemHead(cy);
+
+        const lines = Array.isArray(input.lines) ? input.lines : [];
+
+        if (lines.length === 0) {
+          doc.rect(M, cy, CW, 36).fill(white);
           [qtyX + qtyW, dscX + dscW, prcX + prcW].forEach(x => {
             doc.strokeColor(border).lineWidth(0.3)
-               .moveTo(x, y).lineTo(x, y + rowH).stroke();
+               .moveTo(x, cy).lineTo(x, cy + 36).stroke();
           });
           doc.strokeColor(border).lineWidth(0.4)
-             .moveTo(M, y + rowH).lineTo(M + CW, y + rowH).stroke();
+             .moveTo(M, cy + 36).lineTo(M + CW, cy + 36).stroke();
+          doc.fillColor(inkDim).font("Helvetica").fontSize(9)
+             .text("Sin ítems seleccionados.", dscX + cPad, cy + 12);
+          cy += 36;
+        } else {
+          lines.forEach((line, idx) => {
+            const hasDesc  = !!line.description?.trim();
+            const itemColW = dscW - cPad * 2;
 
-          const ty = y + cPad;
-          doc.fillColor(inkSub).font("Helvetica").fontSize(9)
-             .text(String(line.quantity), qtyX + cPad, ty, { width: qtyW - cPad * 2, align: "center" });
-          doc.fillColor(ink).font("Helvetica-Bold").fontSize(9)
-             .text(line.name, dscX + cPad, ty, { width: itemColW });
-          if (hasDesc) {
-            doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
-               .text(line.description, dscX + cPad, ty + nameH + 3, { width: itemColW });
-          }
-          doc.fillColor(inkSub).font("Helvetica").fontSize(9)
-             .text(formatCurrency(line.unitPrice, input.currency), prcX + cPad, ty, { width: prcW - cPad * 2, align: "right" })
-             .text(formatCurrency(line.subtotal, input.currency),  mntX + cPad, ty, { width: mntW - cPad * 2, align: "right" });
+            doc.font("Helvetica-Bold").fontSize(9);
+            const nameH = doc.heightOfString(line.name || "—", { width: itemColW });
+            let descH = 0;
+            if (hasDesc) {
+              doc.font("Helvetica").fontSize(7.5);
+              descH = doc.heightOfString(line.description, { width: itemColW });
+            }
+            const rowH = Math.max(28, Math.ceil(nameH + (hasDesc ? descH + 4 : 0) + cPad * 2));
+            const fill  = idx % 2 === 0 ? white : rowAlt;
 
-          y += rowH;
+            cy = ensureSpace(cy, rowH + 60, true);
+
+            doc.rect(M, cy, CW, rowH).fill(fill);
+            [qtyX + qtyW, dscX + dscW, prcX + prcW].forEach(x => {
+              doc.strokeColor(border).lineWidth(0.3)
+                 .moveTo(x, cy).lineTo(x, cy + rowH).stroke();
+            });
+            doc.strokeColor(border).lineWidth(0.4)
+               .moveTo(M, cy + rowH).lineTo(M + CW, cy + rowH).stroke();
+
+            const ty = cy + cPad;
+            doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+               .text(String(line.quantity), qtyX + cPad, ty, { width: qtyW - cPad * 2, align: "center" });
+            doc.fillColor(ink).font("Helvetica-Bold").fontSize(9)
+               .text(line.name, dscX + cPad, ty, { width: itemColW });
+            if (hasDesc) {
+              doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+                 .text(line.description, dscX + cPad, ty + nameH + 3, { width: itemColW });
+            }
+            doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+               .text(formatCurrency(line.unitPrice, input.currency), prcX + cPad, ty, { width: prcW - cPad * 2, align: "right" })
+               .text(formatCurrency(line.subtotal, input.currency),  mntX + cPad, ty, { width: mntW - cPad * 2, align: "right" });
+
+            cy += rowH;
+          });
+        }
+
+        doc.strokeColor(border).lineWidth(0.5)
+           .moveTo(M, tableStartY).lineTo(M, cy).stroke()
+           .moveTo(M + CW, tableStartY).lineTo(M + CW, cy).stroke();
+        cy += 14;
+
+        cy = ensureSpace(cy, 80);
+
+        const TOT_W     = 288;
+        const TOT_X     = M + CW - TOT_W;
+        const TOT_LBL_W = 170;
+        const TOT_VAL_W = TOT_W - TOT_LBL_W;
+        const TOT_ROW_H = 22;
+
+        const subtotal = input.total - (input.taxAmount || 0);
+        const smallRows: [string, string][] = [
+          ["SUBTOTAL", formatCurrency(subtotal, input.currency)],
+          ["DESCUENTO", "—"],
+          ...(input.taxAmount
+            ? ([[`${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, formatCurrency(input.taxAmount, input.currency)]] as [string, string][])
+            : []),
+        ];
+        smallRows.forEach(([lbl, val]) => {
+          doc.rect(TOT_X, cy, TOT_LBL_W, TOT_ROW_H).fill(rowAlt);
+          doc.rect(TOT_X + TOT_LBL_W, cy, TOT_VAL_W, TOT_ROW_H).fill(white);
+          doc.strokeColor(border).lineWidth(0.5).rect(TOT_X, cy, TOT_W, TOT_ROW_H).stroke();
+          doc.strokeColor(border).lineWidth(0.3)
+             .moveTo(TOT_X + TOT_LBL_W, cy).lineTo(TOT_X + TOT_LBL_W, cy + TOT_ROW_H).stroke();
+          doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+             .text(lbl, TOT_X + 8, cy + 7, { width: TOT_LBL_W - 10 })
+             .text(val, TOT_X + TOT_LBL_W + 5, cy + 7, { width: TOT_VAL_W - 8, align: "right" });
+          cy += TOT_ROW_H;
         });
+
+        const TOTAL_ROW_H = 26;
+        doc.rect(TOT_X, cy, TOT_W, TOTAL_ROW_H).fill(accent);
+        doc.strokeColor(border).lineWidth(0.3)
+           .moveTo(TOT_X + TOT_LBL_W, cy).lineTo(TOT_X + TOT_LBL_W, cy + TOTAL_ROW_H).stroke();
+        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(10)
+           .text("TOTAL", TOT_X + 8, cy + 8, { width: TOT_LBL_W - 10 })
+           .text(formatCurrency(input.total, input.currency), TOT_X + TOT_LBL_W + 5, cy + 8, { width: TOT_VAL_W - 8, align: "right" });
+        return cy + TOTAL_ROW_H + 22;
+      };
+
+      const renderers: Record<string, (y: number) => number> = {
+        client: renderClient,
+        notes: renderNotes,
+        items: renderItems,
+        terms: renderTerms,
+        signature: renderSignature,
+        footer: renderFooterBlock,
+      };
+
+      for (const block of layout) {
+        const fn = renderers[block.id];
+        if (fn) y = fn(y);
       }
 
-      doc.strokeColor(border).lineWidth(0.5)
-         .moveTo(M, tableStartY).lineTo(M, y).stroke()
-         .moveTo(M + CW, tableStartY).lineTo(M + CW, y).stroke();
-      y += 14;
-
-      y = ensureSpace(y, 80);
-
-      const TOT_W     = 288;
-      const TOT_X     = M + CW - TOT_W;
-      const TOT_LBL_W = 170;
-      const TOT_VAL_W = TOT_W - TOT_LBL_W;
-      const TOT_ROW_H = 22;
-
-      const subtotal = input.total - (input.taxAmount || 0);
-      const smallRows: [string, string][] = [
-        ["SUBTOTAL", formatCurrency(subtotal, input.currency)],
-        ["DESCUENTO", "—"],
-        ...(input.taxAmount
-          ? ([[`${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, formatCurrency(input.taxAmount, input.currency)]] as [string, string][])
-          : []),
-      ];
-      smallRows.forEach(([lbl, val]) => {
-        doc.rect(TOT_X, y, TOT_LBL_W, TOT_ROW_H).fill(rowAlt);
-        doc.rect(TOT_X + TOT_LBL_W, y, TOT_VAL_W, TOT_ROW_H).fill(white);
-        doc.strokeColor(border).lineWidth(0.5).rect(TOT_X, y, TOT_W, TOT_ROW_H).stroke();
-        doc.strokeColor(border).lineWidth(0.3)
-           .moveTo(TOT_X + TOT_LBL_W, y).lineTo(TOT_X + TOT_LBL_W, y + TOT_ROW_H).stroke();
-        doc.fillColor(inkSub).font("Helvetica").fontSize(9)
-           .text(lbl, TOT_X + 8, y + 7, { width: TOT_LBL_W - 10 })
-           .text(val, TOT_X + TOT_LBL_W + 5, y + 7, { width: TOT_VAL_W - 8, align: "right" });
-        y += TOT_ROW_H;
-      });
-
-      const TOTAL_ROW_H = 26;
-      doc.rect(TOT_X, y, TOT_W, TOTAL_ROW_H).fill(accent);
-      doc.strokeColor(border).lineWidth(0.3)
-         .moveTo(TOT_X + TOT_LBL_W, y).lineTo(TOT_X + TOT_LBL_W, y + TOTAL_ROW_H).stroke();
-      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(10)
-         .text("TOTAL", TOT_X + 8, y + 8, { width: TOT_LBL_W - 10 })
-         .text(formatCurrency(input.total, input.currency), TOT_X + TOT_LBL_W + 5, y + 8, { width: TOT_VAL_W - 8, align: "right" });
-      y += TOTAL_ROW_H + 22;
-
-      y = ensureSpace(y, 48);
-      hLine(y, border, 0.8);
-      y += 12;
-
-      doc.fillColor(ink).font("Helvetica-Bold").fontSize(10)
-         .text("¡GRACIAS POR SU PREFERENCIA!", M, y, { width: CW, align: "center" });
-      y += 18;
-
-      doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
-         .text(
-           `Si desea realizar alguna consulta con respecto a esta cotización, póngase en contacto con ${brand}.`,
-           M, y, { width: CW, align: "center" }
-         );
-      y += 14;
-
+      // Pie con los metadatos del documento — siempre al final, no forma parte
+      // del layout configurable (identifica el documento, no es contenido editable).
+      y = ensureSpace(y, 20);
       doc.fillColor(inkDim).font("Helvetica").fontSize(7)
          .text(
            `${brand}  ·  Cotización N° ${qNumber}  ·  ${issueDate}  ·  Documento generado automáticamente`,

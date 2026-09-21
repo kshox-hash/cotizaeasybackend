@@ -15,12 +15,13 @@ export async function initQuoteCatalogItemsTable(): Promise<void> {
       created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
     );
     ALTER TABLE quote_catalog_items ADD COLUMN IF NOT EXISTS code TEXT;
+    ALTER TABLE quote_catalog_items ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'servicio';
     CREATE INDEX IF NOT EXISTS idx_quote_catalog_items_user_id ON quote_catalog_items(user_id);
   `);
 }
 
 const SELECT_COLUMNS = `id::text, name, code, description, COALESCE(unit, 'unidad') AS unit,
-            price, is_active, is_quote_only, created_at`;
+            price, is_active, is_quote_only, item_type, created_at`;
 
 // El catálogo guardado explícitamente para cotizaciones (is_quote_only = true).
 export async function listQuoteServices(userId: string) {
@@ -48,13 +49,13 @@ export async function listAllQuotableServices(userId: string) {
 
 export async function createQuoteService(
   userId: string,
-  params: { name: string; description?: string; unit: string; price: number; code?: string; isQuoteOnly?: boolean }
+  params: { name: string; description?: string; unit: string; price: number; code?: string; isQuoteOnly?: boolean; itemType?: string }
 ) {
   const res = await DB.getPool().query(
-    `INSERT INTO quote_catalog_items (user_id, name, description, unit, price, code, is_quote_only)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO quote_catalog_items (user_id, name, description, unit, price, code, is_quote_only, item_type)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING ${SELECT_COLUMNS}`,
-    [userId, params.name, params.description || null, params.unit, params.price, params.code || null, params.isQuoteOnly ?? true]
+    [userId, params.name, params.description || null, params.unit, params.price, params.code || null, params.isQuoteOnly ?? true, params.itemType === "producto" ? "producto" : "servicio"]
   );
   return res.rows[0];
 }
@@ -70,6 +71,7 @@ export async function updateQuoteService(
     code?: string | null;
     isActive?: boolean;
     isQuoteOnly?: boolean;
+    itemType?: string;
   }
 ) {
   const fields: string[] = [];
@@ -83,6 +85,7 @@ export async function updateQuoteService(
   if (params.code        !== undefined) { fields.push(`code = $${i++}`);           values.push(params.code); }
   if (params.isActive    !== undefined) { fields.push(`is_active = $${i++}`);      values.push(params.isActive); }
   if (params.isQuoteOnly !== undefined) { fields.push(`is_quote_only = $${i++}`);  values.push(params.isQuoteOnly); }
+  if (params.itemType    !== undefined) { fields.push(`item_type = $${i++}`);      values.push(params.itemType === "producto" ? "producto" : "servicio"); }
 
   if (fields.length === 0) return null;
   values.push(serviceId, userId);

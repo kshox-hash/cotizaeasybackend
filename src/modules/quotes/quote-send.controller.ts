@@ -13,6 +13,10 @@ type QuoteItem = {
   price: number;
   description?: string;
   quantity?: number;
+  /** Id del ítem de quote_catalog_items del que viene esta línea (si se agregó
+   * desde el catálogo, no a mano) — se guarda tal cual en quote_history.items
+   * y lo usa getMostQuotedItems() para armar el ranking de más cotizados. */
+  catalogItemId?: string;
 };
 
 type SendQuoteBody = {

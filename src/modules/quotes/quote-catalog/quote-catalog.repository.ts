@@ -103,3 +103,49 @@ export async function deleteQuoteService(userId: string, serviceId: string) {
   );
   return res.rows[0] || null;
 }
+
+// Ranking de "más cotizados" — cuenta en cuántas cotizaciones del historial
+// apareció cada ítem del catálogo. Las cotizaciones armadas desde el catálogo
+// guardan `catalogItemId` en cada línea (match exacto); las líneas viejas o
+// agregadas a mano no lo tienen, así que como respaldo se matchea por nombre
+// (sin mayúsculas/espacios) contra el catálogo actual del usuario.
+export async function getMostQuotedItems(
+  userId: string,
+  limit = 10
+): Promise<{ id: string; name: string; count: number }[]> {
+  const pool = DB.getPool();
+
+  const catalogRes = await pool.query(
+    `SELECT id::text, name FROM quote_catalog_items WHERE user_id = $1`,
+    [userId]
+  );
+  const catalog = catalogRes.rows as { id: string; name: string }[];
+  if (catalog.length === 0) return [];
+
+  const byId = new Map(catalog.map((c) => [c.id, c]));
+  const byName = new Map(catalog.map((c) => [c.name.trim().toLowerCase(), c]));
+
+  const historyRes = await pool.query(
+    `SELECT items FROM quote_history WHERE user_id = $1`,
+    [userId]
+  );
+
+  const counts = new Map<string, number>();
+  for (const row of historyRes.rows) {
+    const items: any[] = Array.isArray(row.items) ? row.items : [];
+    for (const it of items) {
+      let match = it?.catalogItemId ? byId.get(String(it.catalogItemId)) : undefined;
+      if (!match) {
+        const name = String(it?.name || it?.title || "").trim().toLowerCase();
+        match = name ? byName.get(name) : undefined;
+      }
+      if (match) counts.set(match.id, (counts.get(match.id) || 0) + 1);
+    }
+  }
+
+  return catalog
+    .map((c) => ({ id: c.id, name: c.name, count: counts.get(c.id) || 0 }))
+    .filter((c) => c.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}

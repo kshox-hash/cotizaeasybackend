@@ -72,6 +72,18 @@ export const quoteServicesController = {
     }
   },
 
+  async ranking(req: Request, res: Response): Promise<Response> {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ ok: false, message: "No autorizado" });
+      const ranking = await repo.getMostQuotedItems(userId, 10);
+      return res.json({ ok: true, ranking });
+    } catch (e: any) {
+      console.error("[quoteServices] ranking:", e);
+      return res.status(500).json({ ok: false, message: "Error interno del servidor." });
+    }
+  },
+
   async remove(req: Request, res: Response): Promise<Response> {
     try {
       const userId = req.user?.userId;

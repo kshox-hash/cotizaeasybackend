@@ -17,9 +17,9 @@ export async function initBillingColumns(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end TIMESTAMPTZ;
   `);
   // Cuentas creadas antes de este módulo no tienen trial_ends_at — se les da el mismo
-  // trial de 2 días a partir de ahora en vez de dejarlas bloqueadas de sorpresa.
+  // trial de 7 días a partir de ahora en vez de dejarlas bloqueadas de sorpresa.
   await DB.getPool().query(`
-    UPDATE users SET trial_ends_at = now() + interval '2 days'
+    UPDATE users SET trial_ends_at = now() + interval '7 days'
     WHERE trial_ends_at IS NULL AND subscription_status = 'trial';
   `);
 }

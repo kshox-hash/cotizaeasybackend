@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { getSubscriptionState } from "../modules/billing/billing.service";
 
 /**
- * Bloquea el acceso a la API una vez vencido el trial de 2 días si no hay una
+ * Bloquea el acceso a la API una vez vencido el trial de 7 días si no hay una
  * suscripción activa. Debe montarse DESPUÉS de authMiddleware (necesita req.user).
  * El bloqueo real vive acá, no solo en el frontend — así no se puede saltar
  * pegándole directo a la API.

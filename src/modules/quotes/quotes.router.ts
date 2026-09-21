@@ -28,7 +28,6 @@ router.delete("/quotes/logo",      authMiddleware, quoteSendController.removeLog
 // ── Quote catalog (ítems guardados para cotizaciones manuales) ────────────────
 router.get   ("/quote-services",             authMiddleware, quoteServicesController.list);
 router.get   ("/quote-services/all",         authMiddleware, quoteServicesController.listAll);
-router.get   ("/quote-services/ranking",     authMiddleware, quoteServicesController.ranking);
 router.post  ("/quote-services",             authMiddleware, quoteServicesController.create);
 router.put   ("/quote-services/:serviceId",  authMiddleware, quoteServicesController.update);
 router.delete("/quote-services/:serviceId",  authMiddleware, quoteServicesController.remove);

@@ -16,12 +16,16 @@ export async function initQuoteCatalogItemsTable(): Promise<void> {
     );
     ALTER TABLE quote_catalog_items ADD COLUMN IF NOT EXISTS code TEXT;
     ALTER TABLE quote_catalog_items ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'servicio';
+    -- Contador directo en vez de calcular un ranking escaneando todo quote_history
+    -- en cada carga del catálogo: se incrementa una vez por ítem cada vez que se
+    -- genera una cotización que lo incluye (ver incrementCatalogItemsQuotedCount).
+    ALTER TABLE quote_catalog_items ADD COLUMN IF NOT EXISTS times_quoted INTEGER NOT NULL DEFAULT 0;
     CREATE INDEX IF NOT EXISTS idx_quote_catalog_items_user_id ON quote_catalog_items(user_id);
   `);
 }
 
 const SELECT_COLUMNS = `id::text, name, code, description, COALESCE(unit, 'unidad') AS unit,
-            price, is_active, is_quote_only, item_type, created_at`;
+            price, is_active, is_quote_only, item_type, times_quoted, created_at`;
 
 // El catálogo guardado explícitamente para cotizaciones (is_quote_only = true).
 export async function listQuoteServices(userId: string) {
@@ -107,48 +111,15 @@ export async function deleteQuoteService(userId: string, serviceId: string) {
   return res.rows[0] || null;
 }
 
-// Ranking de "más cotizados" — cuenta en cuántas cotizaciones del historial
-// apareció cada ítem del catálogo. Las cotizaciones armadas desde el catálogo
-// guardan `catalogItemId` en cada línea (match exacto); las líneas viejas o
-// agregadas a mano no lo tienen, así que como respaldo se matchea por nombre
-// (sin mayúsculas/espacios) contra el catálogo actual del usuario.
-export async function getMostQuotedItems(
-  userId: string,
-  limit = 10
-): Promise<{ id: string; name: string; count: number }[]> {
-  const pool = DB.getPool();
-
-  const catalogRes = await pool.query(
-    `SELECT id::text, name FROM quote_catalog_items WHERE user_id = $1`,
-    [userId]
+// Se llama cada vez que se genera una cotización, con los catalogItemId que
+// haya en sus líneas — suma 1 a cada ítem usado. Reemplaza al viejo ranking
+// que recalculaba todo escaneando quote_history completo en cada carga del
+// catálogo: acá el conteo ya viene resuelto en la fila del ítem.
+export async function incrementCatalogItemsQuotedCount(userId: string, catalogItemIds: string[]): Promise<void> {
+  const ids = Array.from(new Set(catalogItemIds.filter(Boolean)));
+  if (ids.length === 0) return;
+  await DB.getPool().query(
+    `UPDATE quote_catalog_items SET times_quoted = times_quoted + 1 WHERE user_id = $1 AND id = ANY($2::uuid[])`,
+    [userId, ids]
   );
-  const catalog = catalogRes.rows as { id: string; name: string }[];
-  if (catalog.length === 0) return [];
-
-  const byId = new Map(catalog.map((c) => [c.id, c]));
-  const byName = new Map(catalog.map((c) => [c.name.trim().toLowerCase(), c]));
-
-  const historyRes = await pool.query(
-    `SELECT items FROM quote_history WHERE user_id = $1`,
-    [userId]
-  );
-
-  const counts = new Map<string, number>();
-  for (const row of historyRes.rows) {
-    const items: any[] = Array.isArray(row.items) ? row.items : [];
-    for (const it of items) {
-      let match = it?.catalogItemId ? byId.get(String(it.catalogItemId)) : undefined;
-      if (!match) {
-        const name = String(it?.name || it?.title || "").trim().toLowerCase();
-        match = name ? byName.get(name) : undefined;
-      }
-      if (match) counts.set(match.id, (counts.get(match.id) || 0) + 1);
-    }
-  }
-
-  return catalog
-    .map((c) => ({ id: c.id, name: c.name, count: counts.get(c.id) || 0 }))
-    .filter((c) => c.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
 }

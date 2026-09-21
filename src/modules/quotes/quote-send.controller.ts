@@ -7,6 +7,7 @@ import { dispatchQuoteToClients } from "./quote-dispatch.service";
 import { generateQuotePdf } from "./quote.service";
 import { QuoteTemplateType } from "./quote.types";
 import { saveQuoteHistory } from "./quote-history/quote-history.repository";
+import { incrementCatalogItemsQuotedCount } from "./quote-catalog/quote-catalog.repository";
 
 type QuoteItem = {
   title: string;
@@ -14,8 +15,8 @@ type QuoteItem = {
   description?: string;
   quantity?: number;
   /** Id del ítem de quote_catalog_items del que viene esta línea (si se agregó
-   * desde el catálogo, no a mano) — se guarda tal cual en quote_history.items
-   * y lo usa getMostQuotedItems() para armar el ranking de más cotizados. */
+   * desde el catálogo, no a mano) — se usa para sumarle 1 a su contador
+   * times_quoted vía incrementCatalogItemsQuotedCount(). */
   catalogItemId?: string;
 };
 
@@ -185,6 +186,16 @@ export const quoteSendController = {
         taxAmount,
         taxLabel: taxLabelOverride || profile?.tax_label,
       }).catch((err) => { console.error("[quoteSend] preview historial:", err); return null; });
+
+      // No se espera esta escritura — no afecta la respuesta (el header de
+      // token ya salió de savedQuote) y no hay razón para retrasar la descarga
+      // del PDF por un contador que no es crítico.
+      const catalogItemIds = products.map((p) => p.catalogItemId).filter((id): id is string => !!id);
+      if (catalogItemIds.length) {
+        incrementCatalogItemsQuotedCount(userId, catalogItemIds).catch((err) =>
+          console.error("[quoteSend] increment contador catálogo:", err)
+        );
+      }
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", "inline");

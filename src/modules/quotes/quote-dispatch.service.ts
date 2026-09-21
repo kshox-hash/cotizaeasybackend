@@ -2,6 +2,7 @@ import fs from "fs";
 import { generateQuotePdf } from "./quote.service";
 import { sendQuoteEmail } from "./quote-email.service";
 import { saveQuoteHistory } from "./quote-history/quote-history.repository";
+import { incrementCatalogItemsQuotedCount } from "./quote-catalog/quote-catalog.repository";
 import { QuoteCustomFieldDef, QuoteLayoutBlock } from "./quote.types";
 
 export type QuoteLine = {
@@ -122,6 +123,15 @@ export async function dispatchQuoteToClients(params: {
         taxAmount:         params.taxAmount,
         taxLabel:          params.taxLabel,
       }).catch((err) => { console.error("[quoteDispatch] historial:", err); return null; });
+
+      const catalogItemIds = (Array.isArray(params.items) ? params.items : [])
+        .map((it: any) => it?.catalogItemId)
+        .filter((id): id is string => !!id);
+      if (catalogItemIds.length) {
+        incrementCatalogItemsQuotedCount(params.userId, catalogItemIds).catch((err) =>
+          console.error("[quoteDispatch] increment contador catálogo:", err)
+        );
+      }
 
       const viewUrl = savedQuote?.quote_token
         ? `${process.env.PUBLIC_BASE_URL}/cotizacion/${savedQuote.quote_token}`

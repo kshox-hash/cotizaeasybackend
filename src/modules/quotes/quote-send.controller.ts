@@ -167,7 +167,7 @@ export const quoteSendController = {
       });
       filePath = generated.filePath;
 
-      await saveQuoteHistory({
+      const savedQuote = await saveQuoteHistory({
         userId,
         templateType,
         clientName: previewClient!.name,
@@ -184,10 +184,11 @@ export const quoteSendController = {
         taxRate,
         taxAmount,
         taxLabel: taxLabelOverride || profile?.tax_label,
-      }).catch((err) => console.error("[quoteSend] preview historial:", err));
+      }).catch((err) => { console.error("[quoteSend] preview historial:", err); return null; });
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", "inline");
+      if (savedQuote?.quote_token) res.setHeader("X-Quote-Token", savedQuote.quote_token);
       const stream = fs.createReadStream(filePath);
       stream.pipe(res);
       stream.on("close", () => { if (filePath) fs.unlink(filePath, () => {}); });

@@ -91,6 +91,10 @@ app.use(
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    // Sin esto el navegador descarta el header al leerlo desde el frontend (aunque
+    // el response sí lo traiga) — lo necesita la vista previa para armar el link
+    // público (/cotizacion/:token) sin otro request aparte.
+    exposedHeaders: ["X-Quote-Token"],
   })
 );
 

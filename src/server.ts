@@ -1,4 +1,5 @@
 import "./config/env"; // valida variables de entorno al arrancar
+import { Sentry } from "./config/sentry"; // se importa antes que express: instrumenta módulos al cargarse
 
 import express from "express";
 import cors from "cors";
@@ -8,7 +9,7 @@ import crypto from "crypto";
 import passport from "passport";
 
 import { PORT, CORS_ORIGINS, BASE_URL } from "./config/env";
-import { GENERATED_PDFS_DIR } from "./modules/quotes/quote.service";
+import { GENERATED_PDFS_DIR, sweepOrphanedPdfs } from "./modules/quotes/quote.service";
 
 import companyProfileRoutes from "./modules/profiles/company-profile.router";
 import { companyProfileRepository } from "./modules/profiles/company_profile_repository";
@@ -35,11 +36,13 @@ import DB from "./db/db_configuration";
 // ─── Proceso ────────────────────────────────────────────────────────────────
 process.on("uncaughtException", (err) => {
   console.error("[process] uncaughtException:", err);
+  Sentry.captureException(err);
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
   console.error("[process] unhandledRejection:", reason);
+  Sentry.captureException(reason);
   process.exit(1);
 });
 
@@ -196,6 +199,9 @@ const server = app.listen(PORT, async () => {
     initClientsTable().catch((e) => console.error("[init] clients:", e)),
   ]);
   console.log("[server] Esquema inicializado.");
+
+  sweepOrphanedPdfs();
+  setInterval(sweepOrphanedPdfs, 60 * 60 * 1000).unref();
 });
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────

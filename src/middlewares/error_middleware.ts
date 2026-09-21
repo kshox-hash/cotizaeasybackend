@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
+import { Sentry } from "../config/sentry";
 
 export function errorMiddleware(
   error: unknown,
@@ -19,6 +20,7 @@ export function errorMiddleware(
 
   // Errores internos — no exponer el mensaje al cliente
   console.error("[error]", req.method, req.path, error);
+  Sentry.captureException(error);
 
   return res.status(500).json({
     error: "Error interno del servidor",

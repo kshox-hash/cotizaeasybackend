@@ -28,6 +28,10 @@ export const PGDATABASE = requireEnv("PGDATABASE");
 export const PGPORT     = Number(process.env.PGPORT) || 5432;
 export const PGSSL      = process.env.PGSSL !== "false";
 
+// Monitoreo de errores — opcional: sin esto seteado, Sentry simplemente no se
+// inicializa (ver server.ts) y todo sigue funcionando igual, solo sin reportes.
+export const SENTRY_DSN = process.env.SENTRY_DSN || "";
+
 // Login con Google — opcional: si no están seteadas, la estrategia simplemente no se
 // registra y /auth/google responde 501 en vez de romper el arranque del servidor.
 export const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID || "";

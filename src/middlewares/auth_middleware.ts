@@ -42,7 +42,10 @@ export function authMiddleware(
 
     const token = authorization.replace("Bearer ", "").trim();
 
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
+    // Se fija el algoritmo explícitamente — sin esto, jwt.verify acepta cualquier
+    // algoritmo que traiga el propio token (defensa en profundidad; acá no hay
+    // llave pública de por medio así que no es explotable hoy, pero no cuesta nada).
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as AuthUser;
 
     req.user = {
       userId: decoded.userId,

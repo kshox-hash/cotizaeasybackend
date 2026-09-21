@@ -19,6 +19,27 @@ if (!fs.existsSync(GENERATED_PDFS_DIR)) {
   fs.mkdirSync(GENERATED_PDFS_DIR, { recursive: true });
 }
 
+// Red de seguridad: cada PDF se borra al terminar su propia request (ver
+// finally/stream.on("close") en los callers), pero si el proceso se cae a
+// mitad de camino queda huérfano en disco para siempre. Este barrido
+// (llamado desde server.ts al arrancar y cada 1h) borra lo que lleve más
+// de 1h ahí — ningún PDF real dura tanto en esta carpeta en uso normal.
+export function sweepOrphanedPdfs(maxAgeMs = 60 * 60 * 1000): void {
+  fs.readdir(GENERATED_PDFS_DIR, (err, files) => {
+    if (err) return console.error("[quote.service] sweepOrphanedPdfs readdir:", err);
+    const cutoff = Date.now() - maxAgeMs;
+    for (const file of files) {
+      const filePath = path.join(GENERATED_PDFS_DIR, file);
+      fs.stat(filePath, (statErr, stat) => {
+        if (statErr || !stat.isFile() || stat.mtimeMs >= cutoff) return;
+        fs.unlink(filePath, (unlinkErr) => {
+          if (unlinkErr) console.error("[quote.service] sweepOrphanedPdfs unlink:", filePath, unlinkErr);
+        });
+      });
+    }
+  });
+}
+
 const R2_PUBLIC_HOST = (() => {
   try {
     return process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).hostname : null;

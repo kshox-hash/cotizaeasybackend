@@ -17,6 +17,11 @@ export async function initQuoteHistoryTable(): Promise<void> {
       sent_at       TIMESTAMPTZ   DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_quote_history_user_id ON quote_history(user_id);
+    -- listQuoteHistory pega WHERE user_id + ORDER BY sent_at DESC LIMIT: sin esta
+    -- compuesta, el índice de arriba solo filtra por user_id y postgres tiene que
+    -- ordenar aparte — con el historial de un usuario activo creciendo, esto se
+    -- pone cada vez más lento.
+    CREATE INDEX IF NOT EXISTS idx_quote_history_user_sent ON quote_history(user_id, sent_at DESC);
   `);
 }
 

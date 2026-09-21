@@ -65,14 +65,40 @@ export function downloadImageBuffer(url: string): Promise<Buffer> {
   });
 }
 
+// Cache del logo ya convertido a PNG, por URL. Cada subida a R2 genera una key con
+// UUID nuevo (ver r2-upload.ts) — una URL nunca cambia de contenido, así que esto
+// nunca sirve un logo obsoleto. Sin esto, cada vista previa/descarga (y cada
+// destinatario en un envío a varios) volvía a bajar la imagen de R2 y reconvertirla
+// con sharp desde cero, aunque el logo casi nunca cambia entre una llamada y otra.
+const COVER_BUFFER_CACHE_MAX = 200;
+const coverBufferCache = new Map<string, Buffer>();
+
+async function getCoverBuffer(url: string): Promise<Buffer | null> {
+  const cached = coverBufferCache.get(url);
+  if (cached) {
+    coverBufferCache.delete(url); // re-set abajo la mueve al final (LRU: más reciente al final)
+    coverBufferCache.set(url, cached);
+    return cached;
+  }
+  const rawCover = await downloadImageBuffer(url).catch(() => null);
+  if (!rawCover) return null;
+  // PDFKit solo soporta JPEG/PNG — las imágenes subidas a R2 se guardan en WEBP, así que hay que convertir.
+  const converted = await sharp(rawCover).png().toBuffer().catch(() => null);
+  if (!converted) return null;
+  coverBufferCache.set(url, converted);
+  if (coverBufferCache.size > COVER_BUFFER_CACHE_MAX) {
+    const oldestKey = coverBufferCache.keys().next().value;
+    if (oldestKey !== undefined) coverBufferCache.delete(oldestKey);
+  }
+  return converted;
+}
+
 export async function generateQuotePdf(
   input: QuotePdfInput
 ): Promise<{ fileName: string; filePath: string }> {
   let coverBuffer: Buffer | null = null;
   if (input.brandCoverImageUrl?.trim()) {
-    const rawCover = await downloadImageBuffer(input.brandCoverImageUrl).catch(() => null);
-    // PDFKit solo soporta JPEG/PNG — las imágenes subidas a R2 se guardan en WEBP, así que hay que convertir.
-    coverBuffer = rawCover ? await sharp(rawCover).png().toBuffer().catch(() => null) : null;
+    coverBuffer = await getCoverBuffer(input.brandCoverImageUrl.trim());
   }
 
   const timestamp = Date.now();

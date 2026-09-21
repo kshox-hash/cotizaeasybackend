@@ -50,6 +50,30 @@ export async function getSubscriptionState(userId: string): Promise<Subscription
 
 /** Crea (o reutiliza) la suscripción en MercadoPago y devuelve la URL de checkout. */
 export async function createCheckout(userId: string, email: string): Promise<{ checkoutUrl: string }> {
+  const existing = await getBillingInfo(userId);
+  if (existing?.subscriptionStatus === "active") {
+    throw new Error("Ya tienes una suscripción activa.");
+  }
+
+  // Si había un checkout anterior sin confirmar (el usuario apretó el botón más
+  // de una vez, o reintentó porque pareció colgarse), lo cancelamos antes de
+  // crear uno nuevo. Si no, mp_preapproval_id en la BD queda apuntando siempre
+  // al último intento — y si el usuario termina pagando en la pestaña vieja, el
+  // webhook llega con un preapproval_id que ya no matchea a ningún usuario y la
+  // cuenta nunca se activa aunque el pago se haya hecho.
+  if (existing?.mpPreapprovalId) {
+    const prevClient = new PreApproval(mpClient());
+    const prev = await prevClient.get({ id: existing.mpPreapprovalId }).catch(() => null);
+    // Si ya está autorizada pero el webhook todavía no sincronizó el estado local
+    // (carrera rara pero posible), mejor no tocarla — no cancelamos una suscripción
+    // que en MercadoPago ya es real.
+    if (prev && prev.status !== "authorized") {
+      await prevClient.update({ id: existing.mpPreapprovalId, body: { status: "cancelled" } }).catch((err) => {
+        console.warn(`[billing] no se pudo cancelar el preapproval previo ${existing.mpPreapprovalId}:`, err.message);
+      });
+    }
+  }
+
   const preApproval = new PreApproval(mpClient());
 
   const result = await preApproval.create({

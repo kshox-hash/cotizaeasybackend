@@ -27,6 +27,9 @@ export async function billingCheckoutController(req: Request, res: Response) {
 
     return res.json({ ok: true, checkoutUrl });
   } catch (error: any) {
+    if (error?.message === "Ya tienes una suscripción activa.") {
+      return res.status(409).json({ ok: false, message: error.message });
+    }
     console.error("BILLING CHECKOUT ERROR:", error.message);
     return res.status(500).json({ ok: false, message: "No se pudo iniciar el pago. Intenta de nuevo." });
   }

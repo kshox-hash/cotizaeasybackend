@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { QuotePdfInput, resolveCustomFields } from "../quote.types";
+import { QuoteCustomFieldType, QuotePdfInput, resolveCustomFields } from "../quote.types";
 
 // Estilo 3 — Franja de color, COTIZACIÓN centrado, secciones destinación/autorización
 export function generateStyle3(
@@ -39,6 +39,48 @@ export function generateStyle3(
       const border = "#D1D5DB";
       const rowAlt = "#F9FAFB";
       const white  = "#FFFFFF";
+
+      // Dibuja un campo personalizado según su tipo (Editor Visual de Cotización) —
+      // reutilizado en las 3 zonas. Devuelve el nuevo y.
+      const renderCustomField = (
+        f: { title: string; value: string; type: QuoteCustomFieldType },
+        x: number, cy: number, w: number, align: "left" | "center" = "left"
+      ): number => {
+        if (f.type === "note") {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8).text(f.title, x, cy, { width: w, align });
+          const th = doc.heightOfString(f.title, { width: w });
+          doc.fillColor(inkSub).font("Helvetica").fontSize(8).text(f.value, x, cy + th + 2, { width: w, align });
+          doc.font("Helvetica").fontSize(8);
+          return cy + th + 2 + doc.heightOfString(f.value, { width: w }) + 8;
+        }
+        if (f.type === "keyvalue") {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7).text(f.title.toUpperCase(), x, cy, { width: w, align });
+          doc.fillColor(ink).font("Helvetica-Bold").fontSize(10).text(f.value, x, cy + 11, { width: w, align });
+          return cy + 11 + 14 + 6;
+        }
+        if (f.type === "alert") {
+          doc.font("Helvetica").fontSize(8);
+          const vh = doc.heightOfString(f.value, { width: w - 16 });
+          const boxH = 12 + 12 + vh + 8;
+          doc.rect(x, cy, w, boxH).fill(rowAlt);
+          doc.strokeColor(accent).lineWidth(1).rect(x, cy, w, boxH).stroke();
+          doc.fillColor(accent).font("Helvetica-Bold").fontSize(8).text(f.title, x + 8, cy + 8, { width: w - 16, align });
+          doc.fillColor(ink).font("Helvetica").fontSize(8).text(f.value, x + 8, cy + 20, { width: w - 16, align });
+          return cy + boxH + 8;
+        }
+        if (f.type === "signature") {
+          const boxH = 44;
+          doc.strokeColor(border).lineWidth(0.8).rect(x, cy, w, boxH).stroke();
+          doc.strokeColor(inkDim).lineWidth(0.5).moveTo(x + 14, cy + boxH - 16).lineTo(x + w - 14, cy + boxH - 16).stroke();
+          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5).text(f.title, x, cy + boxH - 12, { width: w, align: "center" });
+          return cy + boxH + 8;
+        }
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+           .text(`${f.title}: `, x, cy, { continued: true, width: w })
+           .font("Helvetica").fillColor(inkSub).text(f.value);
+        doc.font("Helvetica").fontSize(8);
+        return cy + doc.heightOfString(`${f.title}: ${f.value}`, { width: w }) + 4;
+      };
 
       // ── Full-bleed accent header band ────────────────────────────────────────
       const HDR_H = 76;
@@ -135,12 +177,8 @@ export function generateStyle3(
       y += panelH + 18;
 
       // Campos personalizados (Configuración → Campos personalizados) de la zona "cliente".
-      resolveCustomFields(input, "client").forEach(({ title, value }) => {
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
-           .text(`${title}: `, M, y, { continued: true, width: CW })
-           .font("Helvetica").fillColor(inkSub).text(value);
-        doc.font("Helvetica").fontSize(8);
-        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      resolveCustomFields(input, "client").forEach((f) => {
+        y = renderCustomField(f, M, y, CW);
       });
 
       // ── Items table ───────────────────────────────────────────────────────────
@@ -251,13 +289,9 @@ export function generateStyle3(
       // Campos personalizados (zona "información adicional")
       const metaFields = resolveCustomFields(input, "meta");
       if (metaFields.length) {
-        y = ensureSpace(y, 20 * metaFields.length + 10);
-        metaFields.forEach(({ title, value }) => {
-          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
-             .text(`${title}: `, M, y, { continued: true, width: CW })
-             .font("Helvetica").fillColor(inkSub).text(value);
-          doc.font("Helvetica").fontSize(8);
-          y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+        y = ensureSpace(y, 30 * metaFields.length + 10);
+        metaFields.forEach((f) => {
+          y = renderCustomField(f, M, y, CW);
         });
         y += 6;
       }
@@ -320,11 +354,9 @@ export function generateStyle3(
       y += 14;
 
       // Campos personalizados (zona "pie de página")
-      resolveCustomFields(input, "footer").forEach(({ title, value }) => {
-        y = ensureSpace(y, 20);
-        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
-           .text(`${title}: ${value}`, M, y, { width: CW, align: "center" });
-        y += doc.heightOfString(`${title}: ${value}`, { width: CW }) + 4;
+      resolveCustomFields(input, "footer").forEach((f) => {
+        y = ensureSpace(y, 30);
+        y = renderCustomField(f, M, y, CW, "center");
       });
 
       doc.end();

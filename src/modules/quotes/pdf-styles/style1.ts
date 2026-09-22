@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
-import { DEFAULT_QUOTE_LAYOUT, QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS, resolveCustomFields } from "../quote.types";
+import { DEFAULT_QUOTE_LAYOUT, QuoteCustomFieldType, QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS, resolveCustomFields } from "../quote.types";
 
 export function generateStyle1(
   input: QuotePdfInput,
@@ -185,6 +185,47 @@ export function generateStyle1(
       // Campos definidos por el usuario (Configuración → Campos personalizados).
       const customFieldsInZone = (zone: "client" | "meta" | "footer") => resolveCustomFields(input, zone);
 
+      // Dibuja un campo personalizado según su tipo (Editor Visual de Cotización) —
+      // reutilizado en las 3 zonas. Devuelve el nuevo cy.
+      const renderCustomField = (
+        f: { title: string; value: string; type: QuoteCustomFieldType },
+        x: number, cy: number, w: number, align: "left" | "center" = "left"
+      ): number => {
+        if (f.type === "note") {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8).text(f.title, x, cy, { width: w, align });
+          const th = strH(f.title, "Helvetica-Bold", 8, w);
+          doc.fillColor(inkSub).font("Helvetica").fontSize(8).text(f.value, x, cy + th + 2, { width: w, align });
+          return cy + th + 2 + strH(f.value, "Helvetica", 8, w) + 8;
+        }
+        if (f.type === "keyvalue") {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7).text(f.title.toUpperCase(), x, cy, { width: w, align });
+          doc.fillColor(ink).font("Helvetica-Bold").fontSize(10).text(f.value, x, cy + 11, { width: w, align });
+          return cy + 11 + 14 + 6;
+        }
+        if (f.type === "alert") {
+          doc.font("Helvetica").fontSize(8);
+          const vh = doc.heightOfString(f.value, { width: w - 16 });
+          const boxH = 12 + 12 + vh + 8;
+          doc.rect(x, cy, w, boxH).fill(rowAlt);
+          doc.strokeColor(accent).lineWidth(1).rect(x, cy, w, boxH).stroke();
+          doc.fillColor(accent).font("Helvetica-Bold").fontSize(8).text(f.title, x + 8, cy + 8, { width: w - 16, align });
+          doc.fillColor(ink).font("Helvetica").fontSize(8).text(f.value, x + 8, cy + 20, { width: w - 16, align });
+          return cy + boxH + 8;
+        }
+        if (f.type === "signature") {
+          const boxH = 44;
+          doc.strokeColor(border).lineWidth(0.8).rect(x, cy, w, boxH).stroke();
+          doc.strokeColor(inkDim).lineWidth(0.5).moveTo(x + 14, cy + boxH - 16).lineTo(x + w - 14, cy + boxH - 16).stroke();
+          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5).text(f.title, x, cy + boxH - 12, { width: w, align: "center" });
+          return cy + boxH + 8;
+        }
+        // text (default)
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+           .text(`${f.title}: `, x, cy, { continued: true, width: w })
+           .font("Helvetica").fillColor(inkSub).text(f.value);
+        return cy + strH(`${f.title}: ${f.value}`, "Helvetica", 8, w) + 4;
+      };
+
       const renderClient = (sy: number): number => {
         const block = blockOf("client");
         let cy = sy;
@@ -208,12 +249,9 @@ export function generateStyle1(
         cy += Math.max(clientH, 13) + 14;
 
         const extraClientFields = customFieldsInZone("client");
-        extraClientFields.forEach(({ title, value }) => {
-          cy = ensureSpace(cy, 30);
-          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
-             .text(`${title}: `, M, cy, { continued: true, width: CW })
-             .font("Helvetica").fillColor(inkSub).text(value);
-          cy += strH(`${title}: ${value}`, "Helvetica", 8, CW) + 4;
+        extraClientFields.forEach((f) => {
+          cy = ensureSpace(cy, 40);
+          cy = renderCustomField(f, M, cy, CW);
         });
 
         return cy;
@@ -280,11 +318,9 @@ export function generateStyle1(
         cy += 14;
 
         const extraFooterFields = customFieldsInZone("footer");
-        extraFooterFields.forEach(({ title, value }) => {
-          cy = ensureSpace(cy, 24);
-          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
-             .text(`${title}: ${value}`, M, cy, { width: CW, align: "center" });
-          cy += strH(`${title}: ${value}`, "Helvetica", 7.5, CW) + 4;
+        extraFooterFields.forEach((f) => {
+          cy = ensureSpace(cy, 30);
+          cy = renderCustomField(f, M, cy, CW, "center");
         });
 
         return cy;
@@ -323,7 +359,14 @@ export function generateStyle1(
             break;
         }
         if (ex.notes) metaCols.push(["NOTAS", ex.notes]);
-        customFieldsInZone("meta").forEach(({ title, value }) => metaCols.push([title.toUpperCase(), value]));
+        // "text"/"keyvalue" encajan en la grilla de cajitas de acá abajo; "note",
+        // "alert" y "signature" necesitan su propio ancho completo, se dibujan
+        // aparte más abajo (ver metaBlockFields).
+        const metaCustomFields = customFieldsInZone("meta");
+        metaCustomFields
+          .filter(f => f.type === "text" || f.type === "keyvalue" || !f.type)
+          .forEach(({ title, value }) => metaCols.push([title.toUpperCase(), value]));
+        const metaBlockFields = metaCustomFields.filter(f => f.type === "note" || f.type === "alert" || f.type === "signature");
 
         if (metaCols.length > 0) {
           cy += 4;
@@ -362,6 +405,11 @@ export function generateStyle1(
         } else {
           cy += 8;
         }
+
+        metaBlockFields.forEach((f) => {
+          cy = ensureSpace(cy, 50);
+          cy = renderCustomField(f, M, cy, CW);
+        });
 
         const tableStartY = cy;
         cy = drawItemHead(cy);

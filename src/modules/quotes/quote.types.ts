@@ -15,10 +15,20 @@ export const TEMPLATE_LABELS: Record<QuoteTemplateType, string> = {
 
 export type QuoteCustomFieldZone = "client" | "meta" | "footer";
 
+// Cómo se dibuja el campo en el PDF:
+//  - text: línea "Título: valor" en una sola línea.
+//  - note: párrafo largo debajo del título (garantías, cláusulas).
+//  - keyvalue: título y valor en columnas separadas, como una ficha.
+//  - alert: caja destacada con borde/fondo de color (recargos, avisos).
+//  - signature: recuadro con línea para firma del cliente.
+export type QuoteCustomFieldType = "text" | "note" | "keyvalue" | "alert" | "signature";
+
 export type QuoteCustomFieldDef = {
   id: string;
   title: string;
   zone: QuoteCustomFieldZone;
+  /** Default "text" — los campos guardados antes de que este campo existiera no lo traen. */
+  type?: QuoteCustomFieldType;
 };
 
 export type QuoteLayoutBlockId = "client" | "notes" | "items" | "terms" | "signature" | "footer";
@@ -107,9 +117,18 @@ export type QuotePdfInput = {
 /** Campos personalizados de una zona con su valor ya resuelto (y sin los que
  * quedaron vacíos) — usado por los 5 estilos de PDF para no repetir el mismo
  * filter/map/trim cinco veces. */
-export function resolveCustomFields(input: QuotePdfInput, zone: QuoteCustomFieldZone): { title: string; value: string }[] {
+export function resolveCustomFields(
+  input: QuotePdfInput,
+  zone: QuoteCustomFieldZone
+): { title: string; value: string; type: QuoteCustomFieldType }[] {
   return (input.customFields || [])
     .filter((f) => f.zone === zone)
-    .map((f) => ({ title: f.title, value: (input.extraFields?.[`cf_${f.id}`] || "").trim() }))
-    .filter((f) => f.value);
+    .map((f) => ({
+      title: f.title,
+      value: (input.extraFields?.[`cf_${f.id}`] || "").trim(),
+      type: f.type || "text",
+    }))
+    // "signature" es un recuadro fijo (línea + título) — no depende de que el
+    // usuario haya escrito un valor, así que no se filtra por valor vacío.
+    .filter((f) => f.value || f.type === "signature");
 }

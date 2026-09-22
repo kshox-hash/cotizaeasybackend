@@ -2,9 +2,10 @@ import { Request, Response } from "express";
 import { companyProfileService } from "./company_profile.service";
 import { companyProfileRepository } from "./company_profile_repository";
 import { isSupportedCurrency, taxNameForCurrency } from "../../utils/format";
-import { QuoteCustomFieldDef, QuoteCustomFieldZone } from "../quotes/quote.types";
+import { QuoteCustomFieldDef, QuoteCustomFieldType, QuoteCustomFieldZone } from "../quotes/quote.types";
 
 const VALID_FIELD_ZONES: QuoteCustomFieldZone[] = ["client", "meta", "footer"];
+const VALID_FIELD_TYPES: QuoteCustomFieldType[] = ["text", "note", "keyvalue", "alert", "signature"];
 const MAX_CUSTOM_FIELDS = 12;
 
 function sanitizeQuoteCustomFields(raw: unknown): QuoteCustomFieldDef[] {
@@ -23,7 +24,8 @@ function sanitizeQuoteCustomFields(raw: unknown): QuoteCustomFieldDef[] {
     if (!/^[a-zA-Z0-9_-]{1,40}$/.test(id)) throw new Error("Id de campo inválido");
     if (seen.has(id)) throw new Error(`Campo repetido: ${id}`);
     seen.add(id);
-    return { id, title, zone };
+    const type: QuoteCustomFieldType = VALID_FIELD_TYPES.includes(f?.type) ? f.type : "text";
+    return { id, title, zone, type };
   });
 }
 

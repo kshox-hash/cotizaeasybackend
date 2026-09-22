@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { FONT_REGULAR, FONT_BOLD, FONT_BOLD_ITALIC, registerQuoteFonts } from "./fonts";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
 import { QuoteCustomFieldType, QuotePdfInput, resolveCustomFields } from "../quote.types";
@@ -16,6 +17,7 @@ export function generateStyle3(
       const doc    = new PDFDocument({ margin: 0, size: "A4" });
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
+      registerQuoteFonts(doc);
 
       const PW = doc.page.width;
       const PH = doc.page.height;
@@ -36,8 +38,8 @@ export function generateStyle3(
       const ink    = "#1A1A1A";
       const inkSub = "#4B5563";
       const inkDim = "#9CA3AF";
-      const border = "#D1D5DB";
-      const rowAlt = "#F9FAFB";
+      const border = "#C8CDD4";
+      const rowAlt = "#F4F6F8";
       const white  = "#FFFFFF";
 
       // Dibuja un campo personalizado según su tipo (Editor Visual de Cotización) —
@@ -47,38 +49,38 @@ export function generateStyle3(
         x: number, cy: number, w: number, align: "left" | "center" = "left"
       ): number => {
         if (f.type === "note") {
-          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8).text(f.title, x, cy, { width: w, align });
+          doc.fillColor(inkDim).font(FONT_BOLD).fontSize(8).text(f.title, x, cy, { width: w, align });
           const th = doc.heightOfString(f.title, { width: w });
-          doc.fillColor(inkSub).font("Helvetica").fontSize(8).text(f.value, x, cy + th + 2, { width: w, align });
-          doc.font("Helvetica").fontSize(8);
+          doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(8).text(f.value, x, cy + th + 2, { width: w, align });
+          doc.font(FONT_REGULAR).fontSize(8);
           return cy + th + 2 + doc.heightOfString(f.value, { width: w }) + 8;
         }
         if (f.type === "keyvalue") {
-          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7).text(f.title.toUpperCase(), x, cy, { width: w, align });
-          doc.fillColor(ink).font("Helvetica-Bold").fontSize(10).text(f.value, x, cy + 11, { width: w, align });
+          doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7).text(f.title.toUpperCase(), x, cy, { width: w, align });
+          doc.fillColor(ink).font(FONT_BOLD).fontSize(10).text(f.value, x, cy + 11, { width: w, align });
           return cy + 11 + 14 + 6;
         }
         if (f.type === "alert") {
-          doc.font("Helvetica").fontSize(8);
+          doc.font(FONT_REGULAR).fontSize(8);
           const vh = doc.heightOfString(f.value, { width: w - 16 });
           const boxH = 12 + 12 + vh + 8;
           doc.rect(x, cy, w, boxH).fill(rowAlt);
           doc.strokeColor(accent).lineWidth(1).rect(x, cy, w, boxH).stroke();
-          doc.fillColor(accent).font("Helvetica-Bold").fontSize(8).text(f.title, x + 8, cy + 8, { width: w - 16, align });
-          doc.fillColor(ink).font("Helvetica").fontSize(8).text(f.value, x + 8, cy + 20, { width: w - 16, align });
+          doc.fillColor(accent).font(FONT_BOLD).fontSize(8).text(f.title, x + 8, cy + 8, { width: w - 16, align });
+          doc.fillColor(ink).font(FONT_REGULAR).fontSize(8).text(f.value, x + 8, cy + 20, { width: w - 16, align });
           return cy + boxH + 8;
         }
         if (f.type === "signature") {
           const boxH = 44;
           doc.strokeColor(border).lineWidth(0.8).rect(x, cy, w, boxH).stroke();
           doc.strokeColor(inkDim).lineWidth(0.5).moveTo(x + 14, cy + boxH - 16).lineTo(x + w - 14, cy + boxH - 16).stroke();
-          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5).text(f.title, x, cy + boxH - 12, { width: w, align: "center" });
+          doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7.5).text(f.title, x, cy + boxH - 12, { width: w, align: "center" });
           return cy + boxH + 8;
         }
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(8)
            .text(`${f.title}: `, x, cy, { continued: true, width: w })
-           .font("Helvetica").fillColor(inkSub).text(f.value);
-        doc.font("Helvetica").fontSize(8);
+           .font(FONT_REGULAR).fillColor(inkSub).text(f.value);
+        doc.font(FONT_REGULAR).fontSize(8);
         return cy + doc.heightOfString(`${f.title}: ${f.value}`, { width: w }) + 4;
       };
 
@@ -100,27 +102,27 @@ export function generateStyle3(
       }
 
       // Company name + contact in header (left)
-      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(16)
+      doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(16)
          .text(brand, M, 16, { width: CW * 0.65, lineBreak: false });
       let hy = 38;
       const hdInfo = [input.brandAddress, input.brandPhone ? `Tel: ${input.brandPhone}` : null, input.brandRut ? `RUT: ${input.brandRut}` : null].filter(Boolean) as string[];
       if (hdInfo.length > 0) {
-        doc.fillColor(hdrTxt).font("Helvetica").fontSize(8)
+        doc.fillColor(hdrTxt).font(FONT_REGULAR).fontSize(8)
            .text(hdInfo.join("  ·  "), M, hy, { width: CW * 0.65 });
         hy += 14;
       }
 
       // N° + Date in header (right)
-      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(8.5)
+      doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(8.5)
          .text(`N° ${qNumber}`, PW - M - 130, 16, { width: 130, align: "right" });
-      doc.fillColor(hdrTxt).font("Helvetica").fontSize(8)
+      doc.fillColor(hdrTxt).font(FONT_REGULAR).fontSize(8)
          .text(issueDate, PW - M - 130, 30, { width: 130, align: "right" });
 
       let y = HDR_H;
 
       // ── COTIZACIÓN title ──────────────────────────────────────────────────────
       y += 12;
-      doc.fillColor(ink).font("Helvetica-Bold").fontSize(24)
+      doc.fillColor(ink).font(FONT_BOLD).fontSize(24)
          .text("COTIZACIÓN", M, y, { width: CW, align: "center" });
       y += 30;
 
@@ -135,7 +137,7 @@ export function generateStyle3(
       // Panel headers
       doc.rect(M, y, PANEL_W, 20).fill(accent);
       doc.rect(PANEL2X, y, PANEL_W, 20).fill(accent);
-      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(8)
+      doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(8)
          .text("INFORMACIÓN DEL CLIENTE", M + 8, y + 7, { width: PANEL_W - 10 })
          .text("DATOS DEL PROVEEDOR", PANEL2X + 8, y + 7, { width: PANEL_W - 10 });
       y += 20;
@@ -158,16 +160,16 @@ export function generateStyle3(
 
       clientData.forEach(([lbl, val], i) => {
         doc.rect(M, y + i * PANEL_ROW_H, PANEL_W, PANEL_ROW_H).fill(i % 2 === 0 ? white : rowAlt);
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
            .text(lbl, M + 8, y + i * PANEL_ROW_H + 5, { width: 60, lineBreak: false });
-        doc.fillColor(ink).font("Helvetica").fontSize(8)
+        doc.fillColor(ink).font(FONT_REGULAR).fontSize(8)
            .text(val, M + 70, y + i * PANEL_ROW_H + 5, { width: PANEL_W - 75, lineBreak: false });
       });
       vendorData.forEach(([lbl, val], i) => {
         doc.rect(PANEL2X, y + i * PANEL_ROW_H, PANEL_W, PANEL_ROW_H).fill(i % 2 === 0 ? white : rowAlt);
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
            .text(lbl, PANEL2X + 8, y + i * PANEL_ROW_H + 5, { width: 60, lineBreak: false });
-        doc.fillColor(ink).font("Helvetica").fontSize(8)
+        doc.fillColor(ink).font(FONT_REGULAR).fontSize(8)
            .text(val, PANEL2X + 70, y + i * PANEL_ROW_H + 5, { width: PANEL_W - 75, lineBreak: false });
       });
 
@@ -189,7 +191,7 @@ export function generateStyle3(
 
       const drawHead = (sy: number) => {
         doc.rect(M, sy, CW, TH).fill(accent);
-        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(7.5)
            .text("CANT.",         qX + 2,   sy + 7, { width: qW - 4,      align: "center" })
            .text("DESCRIPCIÓN",   dX + cP,  sy + 7, { width: dW - cP * 2 })
            .text("PRECIO UNIT.",  pX + cP,  sy + 7, { width: pW - cP * 2, align: "right" })
@@ -201,9 +203,9 @@ export function generateStyle3(
         if (cy + need <= PH - 52) return cy;
         doc.addPage();
         doc.rect(0, 0, PW, 36).fill(accent);
-        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(11)
+        doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(11)
            .text(brand, M, 11, { width: CW * 0.5 });
-        doc.fillColor(hdrTxt).font("Helvetica").fontSize(8)
+        doc.fillColor(hdrTxt).font(FONT_REGULAR).fontSize(8)
            .text(`${qNumber}  ·  ${issueDate}`, M, 11, { width: CW, align: "right" });
         let ny = 50;
         if (withH) ny = drawHead(ny);
@@ -217,11 +219,11 @@ export function generateStyle3(
       lines.forEach((line, idx) => {
         const hasDesc = !!line.description?.trim();
         const itemW   = dW - cP * 2;
-        doc.font("Helvetica-Bold").fontSize(9);
+        doc.font(FONT_BOLD).fontSize(9);
         const nameH = doc.heightOfString(line.name || "—", { width: itemW });
         let descH = 0;
         if (hasDesc) {
-          doc.font("Helvetica").fontSize(7.5);
+          doc.font(FONT_REGULAR).fontSize(7.5);
           descH = doc.heightOfString(line.description, { width: itemW });
         }
         const rowH = Math.max(26, Math.ceil(nameH + (hasDesc ? descH + 3 : 0) + cP * 2));
@@ -236,15 +238,15 @@ export function generateStyle3(
         doc.strokeColor(border).lineWidth(0.35).moveTo(M, y + rowH).lineTo(M + CW, y + rowH).stroke();
 
         const ty = y + cP;
-        doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+        doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(9)
            .text(String(line.quantity), qX + 2, ty, { width: qW - 4, align: "center" });
-        doc.fillColor(ink).font("Helvetica-Bold").fontSize(9)
+        doc.fillColor(ink).font(FONT_BOLD).fontSize(9)
            .text(line.name, dX + cP, ty, { width: itemW });
         if (hasDesc) {
-          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+          doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7.5)
              .text(line.description, dX + cP, ty + nameH + 2, { width: itemW });
         }
-        doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+        doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(9)
            .text(formatCurrency(line.unitPrice, input.currency), pX + cP, ty, { width: pW - cP * 2, align: "right" })
            .text(formatCurrency(line.subtotal, input.currency),  mX + cP, ty, { width: mW - cP * 2, align: "right" });
 
@@ -253,7 +255,7 @@ export function generateStyle3(
 
       if (lines.length === 0) {
         doc.rect(M, y, CW, 32).fill(white);
-        doc.fillColor(inkDim).font("Helvetica").fontSize(9)
+        doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(9)
            .text("Sin ítems.", dX + cP, y + 10);
         y += 32;
       }
@@ -279,7 +281,7 @@ export function generateStyle3(
         doc.strokeColor(border).lineWidth(0.3)
            .moveTo(TX + TLW, y).lineTo(TX + TLW, y + TRH).stroke();
         const clr = isBold ? hdrTxt : ink;
-        doc.fillColor(clr).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(isBold ? 10 : 8.5)
+        doc.fillColor(clr).font(isBold ? FONT_BOLD : FONT_REGULAR).fontSize(isBold ? 10 : 8.5)
            .text(lbl as string, TX + 8, y + (TRH - (isBold ? 12 : 10)) / 2, { width: TLW - 10 })
            .text(val as string, TX + TLW + 5, y + (TRH - (isBold ? 12 : 10)) / 2, { width: TVW - 8, align: "right" });
         y += TRH;
@@ -303,7 +305,7 @@ export function generateStyle3(
 
       doc.rect(M, y, DEST_W, 18).fill(accent);
       doc.rect(AUTH_X, y, DEST_W, 18).fill(accent);
-      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(8)
+      doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(8)
          .text("DESTINACIÓN", M + 8, y + 5, { width: DEST_W - 10 })
          .text("AUTORIZACIÓN", AUTH_X + 8, y + 5, { width: DEST_W - 10 });
       y += 18;
@@ -316,25 +318,25 @@ export function generateStyle3(
          .rect(AUTH_X, y, DEST_W, BOX_H).stroke();
 
       // Destination: client name
-      doc.fillColor(inkSub).font("Helvetica").fontSize(8.5)
+      doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(8.5)
          .text(cust.name || "—", M + 8, y + 8, { width: DEST_W - 14 });
 
       // Authorization: signature line
       doc.strokeColor(border).lineWidth(0.6)
          .moveTo(AUTH_X + 14, y + BOX_H - 14).lineTo(AUTH_X + DEST_W - 14, y + BOX_H - 14).stroke();
-      doc.fillColor(inkDim).font("Helvetica").fontSize(7)
+      doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7)
          .text("Firma", AUTH_X + 14, y + BOX_H - 9, { width: DEST_W - 28, align: "center" });
       y += BOX_H + 16;
 
       // ── FORMA DE PAGO ─────────────────────────────────────────────────────────
       y = ensureSpace(y, 50);
       doc.rect(M, y, CW, 18).fill(accent);
-      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(8)
+      doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(8)
          .text("FORMA DE PAGO", M + 8, y + 5, { width: CW - 10 });
       y += 18;
 
       const payText = input.extraFields?.paymentConditions || cust.notes || "—";
-      doc.font("Helvetica").fontSize(9);
+      doc.font(FONT_REGULAR).fontSize(9);
       const payH = doc.heightOfString(payText, { width: CW - 20 });
       const payBlock = Math.max(32, Math.ceil(payH) + 16);
       doc.rect(M, y, CW, payBlock).fill(rowAlt);
@@ -345,11 +347,11 @@ export function generateStyle3(
       // ── Footer ────────────────────────────────────────────────────────────────
       y = ensureSpace(y, 32);
       doc.rect(0, y, PW, 26).fill(accent);
-      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(8.5)
+      doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(8.5)
          .text("Cotización válida por 30 días desde la fecha de emisión.", 0, y + 8, { width: PW, align: "center" });
       y += 30;
 
-      doc.fillColor(inkDim).font("Helvetica").fontSize(7)
+      doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7)
          .text(`${brand}  ·  ${qNumber}  ·  ${issueDate}`, M, y, { width: CW, align: "center" });
       y += 14;
 

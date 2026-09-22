@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { FONT_REGULAR, FONT_BOLD, FONT_BOLD_ITALIC, registerQuoteFonts } from "./fonts";
 import fs from "fs";
 import { formatCurrency } from "../../../utils/format";
 import { DEFAULT_QUOTE_LAYOUT, QuoteCustomFieldType, QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS, resolveCustomFields } from "../quote.types";
@@ -19,6 +20,7 @@ export function generateStyle8(
       const doc    = new PDFDocument({ margin: 0, size: "A4" });
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
+      registerQuoteFonts(doc);
 
       const PW = doc.page.width;
       const PH = doc.page.height;
@@ -66,7 +68,7 @@ export function generateStyle8(
 
       const drawItemHead = (sy: number): number => {
         doc.rect(M, sy, CW, TH).fill(accent);
-        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(8)
+        doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(8)
            .text("CANT.",         qtyX + cPad, sy + 8, { width: qtyW - cPad * 2, align: "center" })
            .text("DESCRIPCIÓN",  dscX + cPad, sy + 8, { width: dscW - cPad })
            .text("PRECIO UNIT.", prcX + cPad, sy + 8, { width: prcW - cPad * 2, align: "right" })
@@ -75,7 +77,7 @@ export function generateStyle8(
       };
 
       const drawContHeader = () => {
-        doc.fillColor(ink).font("Helvetica-Bold").fontSize(10)
+        doc.fillColor(ink).font(FONT_BOLD).fontSize(10)
            .text(brand.toUpperCase(), M, 14, { width: CW, align: "center" });
         hLine(30, border, 0.5);
       };
@@ -103,27 +105,27 @@ export function generateStyle8(
         doc.strokeColor(accent).lineWidth(1.4).circle(PW / 2, y + LOGO_D / 2, LOGO_D / 2).stroke();
       } else {
         doc.strokeColor(accent).lineWidth(1.4).circle(PW / 2, y + LOGO_D / 2, LOGO_D / 2).stroke();
-        doc.fillColor(ink).font("Helvetica-Bold").fontSize(18)
+        doc.fillColor(ink).font(FONT_BOLD).fontSize(18)
            .text((brand[0] || "M").toUpperCase(), logoX, y + LOGO_D / 2 - 10, { width: LOGO_D, align: "center" });
       }
       y += LOGO_D + 14;
 
-      doc.fillColor(ink).font("Helvetica-Bold").fontSize(20)
+      doc.fillColor(ink).font(FONT_BOLD).fontSize(20)
          .text(brand, M, y, { width: CW, align: "center" });
-      y += strH(brand, "Helvetica-Bold", 20, CW) + 4;
+      y += strH(brand, FONT_BOLD, 20, CW) + 4;
 
       const subtitleBits = [input.subtitle?.trim(), input.brandAddress, input.brandRut ? `RUT: ${input.brandRut}` : undefined, input.brandPhone ? `Tel: ${input.brandPhone}` : undefined].filter(Boolean).join("   ·   ");
       if (subtitleBits) {
-        doc.fillColor(inkSub).font("Helvetica").fontSize(8.5)
+        doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(8.5)
            .text(subtitleBits, M, y, { width: CW, align: "center" });
-        y += strH(subtitleBits, "Helvetica", 8.5, CW) + 10;
+        y += strH(subtitleBits, FONT_REGULAR, 8.5, CW) + 10;
       } else {
         y += 6;
       }
 
       hLine(y, border, 0.6);
       y += 10;
-      doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+      doc.fillColor(inkDim).font(FONT_BOLD).fontSize(8)
          .text(`COTIZACIÓN N.° ${qNumber}   ·   ${issueDate}   ·   ${TEMPLATE_LABELS[tType].toUpperCase()}`, M, y, { width: CW, align: "center" });
       y += 16;
       hLine(y, border, 0.6);
@@ -140,37 +142,37 @@ export function generateStyle8(
         x: number, cy: number, w: number, align: "left" | "center" = "left"
       ): number => {
         if (f.type === "note") {
-          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8).text(f.title, x, cy, { width: w, align });
-          const th = strH(f.title, "Helvetica-Bold", 8, w);
-          doc.fillColor(inkSub).font("Helvetica").fontSize(8).text(f.value, x, cy + th + 2, { width: w, align });
-          return cy + th + 2 + strH(f.value, "Helvetica", 8, w) + 8;
+          doc.fillColor(inkDim).font(FONT_BOLD).fontSize(8).text(f.title, x, cy, { width: w, align });
+          const th = strH(f.title, FONT_BOLD, 8, w);
+          doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(8).text(f.value, x, cy + th + 2, { width: w, align });
+          return cy + th + 2 + strH(f.value, FONT_REGULAR, 8, w) + 8;
         }
         if (f.type === "keyvalue") {
-          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7).text(f.title.toUpperCase(), x, cy, { width: w, align });
-          doc.fillColor(ink).font("Helvetica-Bold").fontSize(10).text(f.value, x, cy + 11, { width: w, align });
+          doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7).text(f.title.toUpperCase(), x, cy, { width: w, align });
+          doc.fillColor(ink).font(FONT_BOLD).fontSize(10).text(f.value, x, cy + 11, { width: w, align });
           return cy + 11 + 14 + 6;
         }
         if (f.type === "alert") {
-          doc.font("Helvetica").fontSize(8);
+          doc.font(FONT_REGULAR).fontSize(8);
           const vh = doc.heightOfString(f.value, { width: w - 16 });
           const boxH = 12 + 12 + vh + 8;
           doc.rect(x, cy, w, boxH).fill(rowAlt);
           doc.strokeColor(accent).lineWidth(1).rect(x, cy, w, boxH).stroke();
-          doc.fillColor(accent).font("Helvetica-Bold").fontSize(8).text(f.title, x + 8, cy + 8, { width: w - 16, align });
-          doc.fillColor(ink).font("Helvetica").fontSize(8).text(f.value, x + 8, cy + 20, { width: w - 16, align });
+          doc.fillColor(accent).font(FONT_BOLD).fontSize(8).text(f.title, x + 8, cy + 8, { width: w - 16, align });
+          doc.fillColor(ink).font(FONT_REGULAR).fontSize(8).text(f.value, x + 8, cy + 20, { width: w - 16, align });
           return cy + boxH + 8;
         }
         if (f.type === "signature") {
           const boxH = 44;
           doc.strokeColor(border).lineWidth(0.8).rect(x, cy, w, boxH).stroke();
           doc.strokeColor(inkDim).lineWidth(0.5).moveTo(x + 14, cy + boxH - 16).lineTo(x + w - 14, cy + boxH - 16).stroke();
-          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5).text(f.title, x, cy + boxH - 12, { width: w, align: "center" });
+          doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7.5).text(f.title, x, cy + boxH - 12, { width: w, align: "center" });
           return cy + boxH + 8;
         }
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(8)
            .text(`${f.title}: `, x, cy, { continued: true, width: w })
-           .font("Helvetica").fillColor(inkSub).text(f.value);
-        return cy + strH(`${f.title}: ${f.value}`, "Helvetica", 8, w) + 4;
+           .font(FONT_REGULAR).fillColor(inkSub).text(f.value);
+        return cy + strH(`${f.title}: ${f.value}`, FONT_REGULAR, 8, w) + 4;
       };
 
       const LEFT_W  = Math.round(CW * 0.54);
@@ -180,9 +182,9 @@ export function generateStyle8(
       const renderClient = (sy: number): number => {
         const block = blockOf("client");
         let cy = sy;
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
            .text(`${block.title.toUpperCase()}:`, M, cy);
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
            .text("PREPARADO POR:", RIGHT_X, cy);
         cy += 12;
 
@@ -192,10 +194,10 @@ export function generateStyle8(
         if (cust.phone?.trim()) clientLines.push(`Tel: ${cust.phone.trim()}`);
 
         const clientText = clientLines.join("\n") || "—";
-        const clientH = strH(clientText, "Helvetica", 9, LEFT_W);
-        doc.fillColor(ink).font("Helvetica").fontSize(9)
+        const clientH = strH(clientText, FONT_REGULAR, 9, LEFT_W);
+        doc.fillColor(ink).font(FONT_REGULAR).fontSize(9)
            .text(clientText, M, cy, { width: LEFT_W });
-        doc.fillColor(ink).font("Helvetica").fontSize(9)
+        doc.fillColor(ink).font(FONT_REGULAR).fontSize(9)
            .text(brand, RIGHT_X, cy, { width: RIGHT_W });
         cy += Math.max(clientH, 13) + 14;
 
@@ -215,10 +217,10 @@ export function generateStyle8(
         let cy = sy;
         hLine(cy, border, 0.4);
         cy += 10;
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
            .text(`${block.title.toUpperCase()}:`, M, cy);
         cy += 12;
-        doc.font("Helvetica").fontSize(9);
+        doc.font(FONT_REGULAR).fontSize(9);
         const noteH = doc.heightOfString(noteText, { width: CW });
         doc.fillColor(inkSub).text(noteText, M, cy, { width: CW });
         return cy + noteH + 10;
@@ -231,10 +233,10 @@ export function generateStyle8(
         let cy = ensureSpace(sy, 40);
         hLine(cy, border, 0.4);
         cy += 10;
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
            .text(`${block.title.toUpperCase()}:`, M, cy);
         cy += 12;
-        doc.font("Helvetica").fontSize(8.5);
+        doc.font(FONT_REGULAR).fontSize(8.5);
         const h = doc.heightOfString(text, { width: CW });
         doc.fillColor(inkSub).text(text, M, cy, { width: CW });
         return cy + h + 10;
@@ -248,7 +250,7 @@ export function generateStyle8(
         doc.strokeColor(border).lineWidth(0.6)
            .moveTo(M, cy).lineTo(M + SIG_W, cy).stroke();
         cy += 8;
-        doc.fillColor(inkDim).font("Helvetica").fontSize(8)
+        doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(8)
            .text(block.title, M, cy, { width: SIG_W });
         return cy + 20;
       };
@@ -259,12 +261,12 @@ export function generateStyle8(
         let cy = ensureSpace(sy, 48);
         hLine(cy, border, 0.8);
         cy += 12;
-        doc.fillColor(ink).font("Helvetica-Bold").fontSize(10)
+        doc.fillColor(ink).font(FONT_BOLD).fontSize(10)
            .text(block.title.toUpperCase(), M, cy, { width: CW, align: "center" });
         cy += 18;
         const contactText = block.text?.trim()
           || `Si desea realizar alguna consulta con respecto a esta cotización, póngase en contacto con ${brand}.`;
-        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7.5)
            .text(contactText, M, cy, { width: CW, align: "center" });
         cy += 14;
 
@@ -281,7 +283,7 @@ export function generateStyle8(
         const block = blockOf("items");
         let cy = sy;
 
-        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
            .text(`${block.title.toUpperCase()}`, M, cy);
         cy += 14;
 
@@ -326,14 +328,14 @@ export function generateStyle8(
               doc.strokeColor("#FFFFFF40" as any).lineWidth(0.5)
                  .moveTo(cx, cy).lineTo(cx, cy + 20).stroke();
             }
-            doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(7)
+            doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(7)
                .text(label, cx + cPad, cy + 7, { width: metaColW - cPad * 2, align: "center" });
           });
           cy += 20;
 
           let maxValH = 16;
           metaCols.forEach(([, value]) => {
-            doc.font("Helvetica").fontSize(8);
+            doc.font(FONT_REGULAR).fontSize(8);
             const h = doc.heightOfString(value, { width: metaColW - cPad * 2 });
             if (h + 14 > maxValH) maxValH = Math.ceil(h) + 14;
           });
@@ -346,7 +348,7 @@ export function generateStyle8(
               doc.strokeColor(border).lineWidth(0.3)
                  .moveTo(cx, cy).lineTo(cx, cy + maxValH).stroke();
             }
-            doc.fillColor(inkSub).font("Helvetica").fontSize(8)
+            doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(8)
                .text(value, cx + cPad, cy + 7, { width: metaColW - cPad * 2, align: "center" });
           });
           cy += maxValH + 12;
@@ -372,7 +374,7 @@ export function generateStyle8(
           });
           doc.strokeColor(border).lineWidth(0.4)
              .moveTo(M, cy + 36).lineTo(M + CW, cy + 36).stroke();
-          doc.fillColor(inkDim).font("Helvetica").fontSize(9)
+          doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(9)
              .text("Sin ítems seleccionados.", dscX + cPad, cy + 12);
           cy += 36;
         } else {
@@ -380,11 +382,11 @@ export function generateStyle8(
             const hasDesc  = !!line.description?.trim();
             const itemColW = dscW - cPad * 2;
 
-            doc.font("Helvetica-Bold").fontSize(9);
+            doc.font(FONT_BOLD).fontSize(9);
             const nameH = doc.heightOfString(line.name || "—", { width: itemColW });
             let descH = 0;
             if (hasDesc) {
-              doc.font("Helvetica").fontSize(7.5);
+              doc.font(FONT_REGULAR).fontSize(7.5);
               descH = doc.heightOfString(line.description, { width: itemColW });
             }
             const rowH = Math.max(28, Math.ceil(nameH + (hasDesc ? descH + 4 : 0) + cPad * 2));
@@ -401,15 +403,15 @@ export function generateStyle8(
                .moveTo(M, cy + rowH).lineTo(M + CW, cy + rowH).stroke();
 
             const ty = cy + cPad;
-            doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+            doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(9)
                .text(String(line.quantity), qtyX + cPad, ty, { width: qtyW - cPad * 2, align: "center" });
-            doc.fillColor(ink).font("Helvetica-Bold").fontSize(9)
+            doc.fillColor(ink).font(FONT_BOLD).fontSize(9)
                .text(line.name, dscX + cPad, ty, { width: itemColW });
             if (hasDesc) {
-              doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+              doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7.5)
                  .text(line.description, dscX + cPad, ty + nameH + 3, { width: itemColW });
             }
-            doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+            doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(9)
                .text(formatCurrency(line.unitPrice, input.currency), prcX + cPad, ty, { width: prcW - cPad * 2, align: "right" })
                .text(formatCurrency(line.subtotal, input.currency),  mntX + cPad, ty, { width: mntW - cPad * 2, align: "right" });
 
@@ -443,7 +445,7 @@ export function generateStyle8(
           doc.strokeColor(border).lineWidth(0.5).rect(TOT_X, cy, TOT_W, TOT_ROW_H).stroke();
           doc.strokeColor(border).lineWidth(0.3)
              .moveTo(TOT_X + TOT_LBL_W, cy).lineTo(TOT_X + TOT_LBL_W, cy + TOT_ROW_H).stroke();
-          doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+          doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(9)
              .text(lbl, TOT_X + 8, cy + 7, { width: TOT_LBL_W - 10 })
              .text(val, TOT_X + TOT_LBL_W + 5, cy + 7, { width: TOT_VAL_W - 8, align: "right" });
           cy += TOT_ROW_H;
@@ -453,7 +455,7 @@ export function generateStyle8(
         doc.rect(TOT_X, cy, TOT_W, TOTAL_ROW_H).fill(accent);
         doc.strokeColor(border).lineWidth(0.3)
            .moveTo(TOT_X + TOT_LBL_W, cy).lineTo(TOT_X + TOT_LBL_W, cy + TOTAL_ROW_H).stroke();
-        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(10)
+        doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(10)
            .text("TOTAL", TOT_X + 8, cy + 8, { width: TOT_LBL_W - 10 })
            .text(formatCurrency(input.total, input.currency), TOT_X + TOT_LBL_W + 5, cy + 8, { width: TOT_VAL_W - 8, align: "right" });
         return cy + TOTAL_ROW_H + 22;
@@ -474,7 +476,7 @@ export function generateStyle8(
       }
 
       y = ensureSpace(y, 20);
-      doc.fillColor(inkDim).font("Helvetica").fontSize(7)
+      doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(7)
          .text(
            `${brand}  ·  Cotización N° ${qNumber}  ·  ${issueDate}  ·  Documento generado automáticamente`,
            M, y, { width: CW, align: "center" }

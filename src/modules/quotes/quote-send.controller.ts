@@ -5,7 +5,7 @@ import { companyProfileService } from "../profiles/company_profile.service";
 import { companyProfileRepository } from "../profiles/company_profile_repository";
 import { dispatchQuoteToClients } from "./quote-dispatch.service";
 import { generateQuotePdf } from "./quote.service";
-import { QuoteTemplateType } from "./quote.types";
+import { QuoteTemplateType, QuoteCustomFieldDef } from "./quote.types";
 import { saveQuoteHistory } from "./quote-history/quote-history.repository";
 import { incrementCatalogItemsQuotedCount } from "./quote-catalog/quote-catalog.repository";
 
@@ -36,6 +36,13 @@ type SendQuoteBody = {
   currency?: string;
   taxRate?: number;
   taxLabel?: string;
+  /** Campos personalizados en vivo (sin guardar aún) para previsualizar el
+   * Editor Visual de Cotización — si viene, pisa los guardados en el perfil. */
+  customFields?: QuoteCustomFieldDef[];
+  /** El Editor Visual regenera esta vista previa en cada edición (con
+   * debounce); sin este flag, cada una de esas llamadas dejaría una fila de
+   * "cotización descargada" en el historial real del usuario. */
+  skipHistory?: boolean;
 };
 
 function computeTax(subtotal: number, taxRatePercent: number | undefined | null) {
@@ -105,6 +112,8 @@ export const quoteSendController = {
         currency,
         taxRate: taxRateOverride,
         taxLabel: taxLabelOverride,
+        customFields: customFieldsOverride,
+        skipHistory,
       } = req.body;
 
       if (!Array.isArray(products) || products.length === 0) {
@@ -164,11 +173,11 @@ export const quoteSendController = {
         taxLabel: taxLabelOverride || profile?.tax_label || undefined,
         extraFields,
         layout: profile?.quote_layout || undefined,
-        customFields: profile?.quote_custom_fields || undefined,
+        customFields: customFieldsOverride ?? profile?.quote_custom_fields ?? undefined,
       });
       filePath = generated.filePath;
 
-      const savedQuote = await saveQuoteHistory({
+      const savedQuote = skipHistory ? null : await saveQuoteHistory({
         userId,
         templateType,
         clientName: previewClient!.name,

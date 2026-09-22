@@ -115,8 +115,8 @@ export type QuotePdfInput = {
 };
 
 /** Campos personalizados de una zona con su valor ya resuelto (y sin los que
- * quedaron vacíos) — usado por los 5 estilos de PDF para no repetir el mismo
- * filter/map/trim cinco veces. */
+ * quedaron vacíos) — usado por los 8 estilos de PDF para no repetir el mismo
+ * filter/map/trim en cada uno. */
 export function resolveCustomFields(
   input: QuotePdfInput,
   zone: QuoteCustomFieldZone

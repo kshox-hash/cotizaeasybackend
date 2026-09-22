@@ -1,0 +1,498 @@
+import PDFDocument from "pdfkit";
+import fs from "fs";
+import { formatCurrency } from "../../../utils/format";
+import { DEFAULT_QUOTE_LAYOUT, QuoteCustomFieldType, QuotePdfInput, QuoteTemplateType, TEMPLATE_LABELS, resolveCustomFields } from "../quote.types";
+
+// Estilo 6 — Franja superior: banda de color a todo el ancho con logo, marca
+// y título dentro; debajo, una tira clara con los metadatos en línea.
+export function generateStyle6(
+  input: QuotePdfInput,
+  cover: Buffer | null,
+  fileName: string,
+  filePath: string,
+  timestamp: number,
+): Promise<{ fileName: string; filePath: string }> {
+  return new Promise((resolve, reject) => {
+    try {
+      const tType: QuoteTemplateType = input.templateType || "rapida";
+
+      const doc    = new PDFDocument({ margin: 0, size: "A4" });
+      const stream = fs.createWriteStream(filePath);
+      doc.pipe(stream);
+
+      const PW = doc.page.width;
+      const PH = doc.page.height;
+      const M  = 40;
+      const CW = PW - M * 2;
+
+      const brand     = input.brand?.trim()  || "Mi negocio";
+      const qNumber   = `Q-${String(timestamp).slice(-6)}`;
+      const issueDate = new Date().toLocaleDateString("es-CL");
+      const cust      = input.customer ?? { name: "", email: "", phone: "", notes: "" };
+
+      const rawAccent = input.brandAccentColor?.trim() ?? "";
+      const accent    = /^#[0-9A-Fa-f]{6}$/.test(rawAccent) ? rawAccent : "#1A1A1A";
+
+      const _lum = (hex: string) => { const r = parseInt(hex.slice(1,3),16); const g = parseInt(hex.slice(3,5),16); const b = parseInt(hex.slice(5,7),16); return (0.299*r+0.587*g+0.114*b)/255; };
+      const hdrTxt = _lum(accent) > 0.55 ? "#1A1A1A" : "#FFFFFF";
+
+      const ink    = "#1A1A1A";
+      const inkSub = "#4B5563";
+      const inkDim = "#9CA3AF";
+      const border = "#C8CDD4";
+      const rowAlt = "#F4F6F8";
+      const white  = "#FFFFFF";
+
+      const strH = (text: string, font: string, size: number, w: number): number => {
+        doc.font(font).fontSize(size);
+        return doc.heightOfString(text || " ", { width: w });
+      };
+
+      const hLine = (y: number, color = border, lw = 0.5) => {
+        doc.strokeColor(color).lineWidth(lw)
+           .moveTo(M, y).lineTo(M + CW, y).stroke();
+      };
+
+      const qtyW = 50;
+      const mntW = 110;
+      const prcW = 110;
+      const dscW = CW - qtyW - prcW - mntW;
+      const qtyX = M;
+      const dscX = M + qtyW;
+      const prcX = dscX + dscW;
+      const mntX = prcX + prcW;
+      const cPad = 8;
+      const TH   = 24;
+
+      const drawItemHead = (sy: number): number => {
+        doc.rect(M, sy, CW, TH).fill(accent);
+        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(8)
+           .text("CANT.",         qtyX + cPad, sy + 8, { width: qtyW - cPad * 2, align: "center" })
+           .text("DESCRIPCIÓN",  dscX + cPad, sy + 8, { width: dscW - cPad })
+           .text("PRECIO UNIT.", prcX + cPad, sy + 8, { width: prcW - cPad * 2, align: "right" })
+           .text("MONTO",        mntX + cPad, sy + 8, { width: mntW - cPad * 2, align: "right" });
+        return sy + TH;
+      };
+
+      const drawContHeader = () => {
+        doc.rect(0, 0, PW, 34).fill(accent);
+        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(11)
+           .text(brand, M, 10, { width: CW * 0.6 });
+        doc.fillColor(hdrTxt).font("Helvetica").fontSize(8)
+           .text(`Cotización N° ${qNumber}  ·  ${issueDate}`, M, 12, { width: CW, align: "right" });
+      };
+
+      const ensureSpace = (cy: number, needed: number, withHead = false): number => {
+        if (cy + needed <= PH - 52) return cy;
+        doc.addPage();
+        drawContHeader();
+        let ny = 34 + 24;
+        if (withHead) ny = drawItemHead(ny);
+        return ny;
+      };
+
+      // ── Banda superior a todo el ancho ────────────────────────────────────
+      const BAND_H = 96;
+      doc.rect(0, 0, PW, BAND_H).fill(accent);
+
+      const LOGO_D = 46;
+      let bx = M;
+      if (cover) {
+        try {
+          doc.save();
+          doc.rect(bx, 26, LOGO_D, LOGO_D).clip();
+          doc.image(cover, bx, 26, { fit: [LOGO_D, LOGO_D] });
+          doc.restore();
+        } catch { /* fallback: sin logo, solo texto */ }
+      } else {
+        doc.save();
+        doc.roundedRect(bx, 26, LOGO_D, LOGO_D, 8).fillOpacity(0.16).fill(hdrTxt);
+        doc.restore();
+        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(20)
+           .text((brand[0] || "M").toUpperCase(), bx, 26 + 11, { width: LOGO_D, align: "center" });
+      }
+
+      const TXT_X = bx + LOGO_D + 14;
+      const TXT_W = Math.round(CW * 0.5);
+      doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(17)
+         .text(brand, TXT_X, 28, { width: TXT_W });
+      let subY = 28 + strH(brand, "Helvetica-Bold", 17, TXT_W) + 3;
+      const subtitleBits = [input.subtitle?.trim(), input.brandAddress, input.brandRut ? `RUT: ${input.brandRut}` : undefined].filter(Boolean).join("  ·  ");
+      if (subtitleBits) {
+        doc.fillColor(hdrTxt).font("Helvetica").fontSize(8.5).fillOpacity(0.85)
+           .text(subtitleBits, TXT_X, subY, { width: TXT_W });
+        doc.fillOpacity(1);
+      }
+
+      doc.fillColor(hdrTxt).font("Helvetica-BoldOblique").fontSize(26)
+         .text("Cotización", M, 32, { width: CW, align: "right" });
+
+      // ── Tira clara con metadatos en línea ─────────────────────────────────
+      const META_H = 30;
+      doc.rect(0, BAND_H, PW, META_H).fill(rowAlt);
+      doc.strokeColor(border).lineWidth(0.4).moveTo(0, BAND_H + META_H).lineTo(PW, BAND_H + META_H).stroke();
+      const metaLine = `N.° ${qNumber}   ·   ${issueDate}   ·   ${TEMPLATE_LABELS[tType]}`;
+      doc.fillColor(inkSub).font("Helvetica-Bold").fontSize(8.5)
+         .text(metaLine, M, BAND_H + 10, { width: CW, align: "center" });
+
+      let y = BAND_H + META_H + 20;
+
+      // ── Bloques configurables ──────────────────────────────────────────
+      const layout = input.layout && input.layout.length ? input.layout : DEFAULT_QUOTE_LAYOUT;
+      const blockOf = (id: string) => layout.find(b => b.id === id) || DEFAULT_QUOTE_LAYOUT.find(b => b.id === id)!;
+
+      const customFieldsInZone = (zone: "client" | "meta" | "footer") => resolveCustomFields(input, zone);
+
+      const renderCustomField = (
+        f: { title: string; value: string; type: QuoteCustomFieldType },
+        x: number, cy: number, w: number, align: "left" | "center" = "left"
+      ): number => {
+        if (f.type === "note") {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8).text(f.title, x, cy, { width: w, align });
+          const th = strH(f.title, "Helvetica-Bold", 8, w);
+          doc.fillColor(inkSub).font("Helvetica").fontSize(8).text(f.value, x, cy + th + 2, { width: w, align });
+          return cy + th + 2 + strH(f.value, "Helvetica", 8, w) + 8;
+        }
+        if (f.type === "keyvalue") {
+          doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7).text(f.title.toUpperCase(), x, cy, { width: w, align });
+          doc.fillColor(ink).font("Helvetica-Bold").fontSize(10).text(f.value, x, cy + 11, { width: w, align });
+          return cy + 11 + 14 + 6;
+        }
+        if (f.type === "alert") {
+          doc.font("Helvetica").fontSize(8);
+          const vh = doc.heightOfString(f.value, { width: w - 16 });
+          const boxH = 12 + 12 + vh + 8;
+          doc.rect(x, cy, w, boxH).fill(rowAlt);
+          doc.strokeColor(accent).lineWidth(1).rect(x, cy, w, boxH).stroke();
+          doc.fillColor(accent).font("Helvetica-Bold").fontSize(8).text(f.title, x + 8, cy + 8, { width: w - 16, align });
+          doc.fillColor(ink).font("Helvetica").fontSize(8).text(f.value, x + 8, cy + 20, { width: w - 16, align });
+          return cy + boxH + 8;
+        }
+        if (f.type === "signature") {
+          const boxH = 44;
+          doc.strokeColor(border).lineWidth(0.8).rect(x, cy, w, boxH).stroke();
+          doc.strokeColor(inkDim).lineWidth(0.5).moveTo(x + 14, cy + boxH - 16).lineTo(x + w - 14, cy + boxH - 16).stroke();
+          doc.fillColor(inkDim).font("Helvetica").fontSize(7.5).text(f.title, x, cy + boxH - 12, { width: w, align: "center" });
+          return cy + boxH + 8;
+        }
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(8)
+           .text(`${f.title}: `, x, cy, { continued: true, width: w })
+           .font("Helvetica").fillColor(inkSub).text(f.value);
+        return cy + strH(`${f.title}: ${f.value}`, "Helvetica", 8, w) + 4;
+      };
+
+      const LEFT_W  = Math.round(CW * 0.54);
+      const RIGHT_X = M + LEFT_W + 14;
+      const RIGHT_W = CW - LEFT_W - 14;
+
+      const renderClient = (sy: number): number => {
+        const block = blockOf("client");
+        let cy = sy;
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text(`${block.title.toUpperCase()}:`, M, cy);
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text("PREPARADO POR:", RIGHT_X, cy);
+        cy += 12;
+
+        const clientLines: string[] = [];
+        if (cust.name?.trim())  clientLines.push(cust.name.trim());
+        if (cust.email?.trim()) clientLines.push(cust.email.trim());
+        if (cust.phone?.trim()) clientLines.push(`Tel: ${cust.phone.trim()}`);
+
+        const clientText = clientLines.join("\n") || "—";
+        const clientH = strH(clientText, "Helvetica", 9, LEFT_W);
+        doc.fillColor(ink).font("Helvetica").fontSize(9)
+           .text(clientText, M, cy, { width: LEFT_W });
+        doc.fillColor(ink).font("Helvetica").fontSize(9)
+           .text(brand, RIGHT_X, cy, { width: RIGHT_W });
+        cy += Math.max(clientH, 13) + 14;
+
+        const extraClientFields = customFieldsInZone("client");
+        extraClientFields.forEach((f) => {
+          cy = ensureSpace(cy, 40);
+          cy = renderCustomField(f, M, cy, CW);
+        });
+
+        return cy;
+      };
+
+      const renderNotes = (sy: number): number => {
+        const noteText = cust.notes?.trim();
+        if (!noteText) return sy;
+        const block = blockOf("notes");
+        let cy = sy;
+        hLine(cy, border, 0.4);
+        cy += 10;
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text(`${block.title.toUpperCase()}:`, M, cy);
+        cy += 12;
+        doc.font("Helvetica").fontSize(9);
+        const noteH = doc.heightOfString(noteText, { width: CW });
+        doc.fillColor(inkSub).text(noteText, M, cy, { width: CW });
+        return cy + noteH + 10;
+      };
+
+      const renderTerms = (sy: number): number => {
+        const block = blockOf("terms");
+        const text = block.text?.trim();
+        if (!block.visible || !text) return sy;
+        let cy = ensureSpace(sy, 40);
+        hLine(cy, border, 0.4);
+        cy += 10;
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text(`${block.title.toUpperCase()}:`, M, cy);
+        cy += 12;
+        doc.font("Helvetica").fontSize(8.5);
+        const h = doc.heightOfString(text, { width: CW });
+        doc.fillColor(inkSub).text(text, M, cy, { width: CW });
+        return cy + h + 10;
+      };
+
+      const renderSignature = (sy: number): number => {
+        const block = blockOf("signature");
+        if (!block.visible) return sy;
+        let cy = ensureSpace(sy, 60) + 26;
+        const SIG_W = 220;
+        doc.strokeColor(border).lineWidth(0.6)
+           .moveTo(M, cy).lineTo(M + SIG_W, cy).stroke();
+        cy += 8;
+        doc.fillColor(inkDim).font("Helvetica").fontSize(8)
+           .text(block.title, M, cy, { width: SIG_W });
+        return cy + 20;
+      };
+
+      const renderFooterBlock = (sy: number): number => {
+        const block = blockOf("footer");
+        if (!block.visible) return sy;
+        let cy = ensureSpace(sy, 48);
+        hLine(cy, border, 0.8);
+        cy += 12;
+        doc.fillColor(ink).font("Helvetica-Bold").fontSize(10)
+           .text(block.title.toUpperCase(), M, cy, { width: CW, align: "center" });
+        cy += 18;
+        const contactText = block.text?.trim()
+          || `Si desea realizar alguna consulta con respecto a esta cotización, póngase en contacto con ${brand}.`;
+        doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+           .text(contactText, M, cy, { width: CW, align: "center" });
+        cy += 14;
+
+        const extraFooterFields = customFieldsInZone("footer");
+        extraFooterFields.forEach((f) => {
+          cy = ensureSpace(cy, 30);
+          cy = renderCustomField(f, M, cy, CW, "center");
+        });
+
+        return cy;
+      };
+
+      const renderItems = (sy: number): number => {
+        const block = blockOf("items");
+        let cy = sy;
+
+        doc.fillColor(inkDim).font("Helvetica-Bold").fontSize(7.5)
+           .text(`${block.title.toUpperCase()}`, M, cy);
+        cy += 14;
+
+        const ex = input.extraFields || {};
+        const metaCols: [string, string][] = [];
+
+        switch (tType) {
+          case "servicios":
+            if (ex.deliveryDate)      metaCols.push(["FECHA ENTREGA",       ex.deliveryDate]);
+            if (ex.paymentConditions) metaCols.push(["CONDICIONES DE PAGO", ex.paymentConditions]);
+            if (ex.exclusions)        metaCols.push(["NO INCLUYE",          ex.exclusions]);
+            break;
+          case "productos":
+            if (ex.deliveryTime)  metaCols.push(["TIEMPO DE ENTREGA",  ex.deliveryTime]);
+            if (ex.priceValidity) metaCols.push(["VALIDEZ DEL PRECIO", ex.priceValidity]);
+            break;
+          case "construccion":
+            if (ex.workAddress)     metaCols.push(["DIRECCIÓN DE OBRA",   ex.workAddress]);
+            if (ex.duration)        metaCols.push(["DURACIÓN ESTIMADA",   ex.duration]);
+            if (ex.paymentSchedule) metaCols.push(["CALENDARIO DE PAGOS", ex.paymentSchedule]);
+            break;
+          case "eventos":
+            if (ex.eventDate)          metaCols.push(["FECHA DEL EVENTO",      ex.eventDate]);
+            if (ex.bookingDeposit)     metaCols.push(["RESERVA REQUERIDA",     ex.bookingDeposit]);
+            if (ex.cancellationPolicy) metaCols.push(["POLÍTICA CANCELACIÓN",  ex.cancellationPolicy]);
+            break;
+        }
+        if (ex.notes) metaCols.push(["NOTAS", ex.notes]);
+        const metaCustomFields = customFieldsInZone("meta");
+        metaCustomFields
+          .filter(f => f.type === "text" || f.type === "keyvalue" || !f.type)
+          .forEach(({ title, value }) => metaCols.push([title.toUpperCase(), value]));
+        const metaBlockFields = metaCustomFields.filter(f => f.type === "note" || f.type === "alert" || f.type === "signature");
+
+        if (metaCols.length > 0) {
+          cy += 4;
+          const metaColW = Math.floor(CW / metaCols.length);
+          doc.rect(M, cy, CW, 20).fill(accent);
+          metaCols.forEach(([label], i) => {
+            const cx = M + i * metaColW;
+            if (i > 0) {
+              doc.strokeColor("#FFFFFF40" as any).lineWidth(0.5)
+                 .moveTo(cx, cy).lineTo(cx, cy + 20).stroke();
+            }
+            doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(7)
+               .text(label, cx + cPad, cy + 7, { width: metaColW - cPad * 2, align: "center" });
+          });
+          cy += 20;
+
+          let maxValH = 16;
+          metaCols.forEach(([, value]) => {
+            doc.font("Helvetica").fontSize(8);
+            const h = doc.heightOfString(value, { width: metaColW - cPad * 2 });
+            if (h + 14 > maxValH) maxValH = Math.ceil(h) + 14;
+          });
+
+          doc.rect(M, cy, CW, maxValH).fill(rowAlt);
+          doc.strokeColor(border).lineWidth(0.5).rect(M, cy, CW, maxValH).stroke();
+          metaCols.forEach(([, value], i) => {
+            const cx = M + i * metaColW;
+            if (i > 0) {
+              doc.strokeColor(border).lineWidth(0.3)
+                 .moveTo(cx, cy).lineTo(cx, cy + maxValH).stroke();
+            }
+            doc.fillColor(inkSub).font("Helvetica").fontSize(8)
+               .text(value, cx + cPad, cy + 7, { width: metaColW - cPad * 2, align: "center" });
+          });
+          cy += maxValH + 12;
+        } else {
+          cy += 8;
+        }
+
+        metaBlockFields.forEach((f) => {
+          cy = ensureSpace(cy, 50);
+          cy = renderCustomField(f, M, cy, CW);
+        });
+
+        const tableStartY = cy;
+        cy = drawItemHead(cy);
+
+        const lines = Array.isArray(input.lines) ? input.lines : [];
+
+        if (lines.length === 0) {
+          doc.rect(M, cy, CW, 36).fill(white);
+          [qtyX + qtyW, dscX + dscW, prcX + prcW].forEach(x => {
+            doc.strokeColor(border).lineWidth(0.3)
+               .moveTo(x, cy).lineTo(x, cy + 36).stroke();
+          });
+          doc.strokeColor(border).lineWidth(0.4)
+             .moveTo(M, cy + 36).lineTo(M + CW, cy + 36).stroke();
+          doc.fillColor(inkDim).font("Helvetica").fontSize(9)
+             .text("Sin ítems seleccionados.", dscX + cPad, cy + 12);
+          cy += 36;
+        } else {
+          lines.forEach((line, idx) => {
+            const hasDesc  = !!line.description?.trim();
+            const itemColW = dscW - cPad * 2;
+
+            doc.font("Helvetica-Bold").fontSize(9);
+            const nameH = doc.heightOfString(line.name || "—", { width: itemColW });
+            let descH = 0;
+            if (hasDesc) {
+              doc.font("Helvetica").fontSize(7.5);
+              descH = doc.heightOfString(line.description, { width: itemColW });
+            }
+            const rowH = Math.max(28, Math.ceil(nameH + (hasDesc ? descH + 4 : 0) + cPad * 2));
+            const fill  = idx % 2 === 0 ? white : rowAlt;
+
+            cy = ensureSpace(cy, rowH + 60, true);
+
+            doc.rect(M, cy, CW, rowH).fill(fill);
+            [qtyX + qtyW, dscX + dscW, prcX + prcW].forEach(x => {
+              doc.strokeColor(border).lineWidth(0.3)
+                 .moveTo(x, cy).lineTo(x, cy + rowH).stroke();
+            });
+            doc.strokeColor(border).lineWidth(0.4)
+               .moveTo(M, cy + rowH).lineTo(M + CW, cy + rowH).stroke();
+
+            const ty = cy + cPad;
+            doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+               .text(String(line.quantity), qtyX + cPad, ty, { width: qtyW - cPad * 2, align: "center" });
+            doc.fillColor(ink).font("Helvetica-Bold").fontSize(9)
+               .text(line.name, dscX + cPad, ty, { width: itemColW });
+            if (hasDesc) {
+              doc.fillColor(inkDim).font("Helvetica").fontSize(7.5)
+                 .text(line.description, dscX + cPad, ty + nameH + 3, { width: itemColW });
+            }
+            doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+               .text(formatCurrency(line.unitPrice, input.currency), prcX + cPad, ty, { width: prcW - cPad * 2, align: "right" })
+               .text(formatCurrency(line.subtotal, input.currency),  mntX + cPad, ty, { width: mntW - cPad * 2, align: "right" });
+
+            cy += rowH;
+          });
+        }
+
+        doc.strokeColor(border).lineWidth(0.5)
+           .moveTo(M, tableStartY).lineTo(M, cy).stroke()
+           .moveTo(M + CW, tableStartY).lineTo(M + CW, cy).stroke();
+        cy += 14;
+
+        cy = ensureSpace(cy, 80);
+
+        const TOT_W     = 288;
+        const TOT_X     = M + CW - TOT_W;
+        const TOT_LBL_W = 170;
+        const TOT_VAL_W = TOT_W - TOT_LBL_W;
+        const TOT_ROW_H = 22;
+
+        const subtotal = input.total - (input.taxAmount || 0);
+        const smallRows: [string, string][] = [
+          ["SUBTOTAL", formatCurrency(subtotal, input.currency)],
+          ...(input.taxAmount
+            ? ([[`${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, formatCurrency(input.taxAmount, input.currency)]] as [string, string][])
+            : []),
+        ];
+        smallRows.forEach(([lbl, val]) => {
+          doc.rect(TOT_X, cy, TOT_LBL_W, TOT_ROW_H).fill(rowAlt);
+          doc.rect(TOT_X + TOT_LBL_W, cy, TOT_VAL_W, TOT_ROW_H).fill(white);
+          doc.strokeColor(border).lineWidth(0.5).rect(TOT_X, cy, TOT_W, TOT_ROW_H).stroke();
+          doc.strokeColor(border).lineWidth(0.3)
+             .moveTo(TOT_X + TOT_LBL_W, cy).lineTo(TOT_X + TOT_LBL_W, cy + TOT_ROW_H).stroke();
+          doc.fillColor(inkSub).font("Helvetica").fontSize(9)
+             .text(lbl, TOT_X + 8, cy + 7, { width: TOT_LBL_W - 10 })
+             .text(val, TOT_X + TOT_LBL_W + 5, cy + 7, { width: TOT_VAL_W - 8, align: "right" });
+          cy += TOT_ROW_H;
+        });
+
+        const TOTAL_ROW_H = 26;
+        doc.rect(TOT_X, cy, TOT_W, TOTAL_ROW_H).fill(accent);
+        doc.strokeColor(border).lineWidth(0.3)
+           .moveTo(TOT_X + TOT_LBL_W, cy).lineTo(TOT_X + TOT_LBL_W, cy + TOTAL_ROW_H).stroke();
+        doc.fillColor(hdrTxt).font("Helvetica-Bold").fontSize(10)
+           .text("TOTAL", TOT_X + 8, cy + 8, { width: TOT_LBL_W - 10 })
+           .text(formatCurrency(input.total, input.currency), TOT_X + TOT_LBL_W + 5, cy + 8, { width: TOT_VAL_W - 8, align: "right" });
+        return cy + TOTAL_ROW_H + 22;
+      };
+
+      const renderers: Record<string, (y: number) => number> = {
+        client: renderClient,
+        notes: renderNotes,
+        items: renderItems,
+        terms: renderTerms,
+        signature: renderSignature,
+        footer: renderFooterBlock,
+      };
+
+      for (const block of layout) {
+        const fn = renderers[block.id];
+        if (fn) y = fn(y);
+      }
+
+      y = ensureSpace(y, 20);
+      doc.fillColor(inkDim).font("Helvetica").fontSize(7)
+         .text(
+           `${brand}  ·  Cotización N° ${qNumber}  ·  ${issueDate}  ·  Documento generado automáticamente`,
+           M, y, { width: CW, align: "center" }
+         );
+
+      doc.end();
+      stream.on("finish", () => resolve({ fileName, filePath }));
+      stream.on("error", reject);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}

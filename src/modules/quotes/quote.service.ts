@@ -10,6 +10,9 @@ import { generateStyle2 } from "./pdf-styles/style2";
 import { generateStyle3 } from "./pdf-styles/style3";
 import { generateStyle4 } from "./pdf-styles/style4";
 import { generateStyle5 } from "./pdf-styles/style5";
+import { generateStyle6 } from "./pdf-styles/style6";
+import { generateStyle7 } from "./pdf-styles/style7";
+import { generateStyle8 } from "./pdf-styles/style8";
 
 export type { QuotePdfInput, QuoteTemplateType };
 
@@ -132,6 +135,9 @@ export async function generateQuotePdf(
     case "3": return generateStyle3(input, coverBuffer, fileName, filePath, timestamp);
     case "4": return generateStyle4(input, coverBuffer, fileName, filePath, timestamp);
     case "5": return generateStyle5(input, coverBuffer, fileName, filePath, timestamp);
+    case "6": return generateStyle6(input, coverBuffer, fileName, filePath, timestamp);
+    case "7": return generateStyle7(input, coverBuffer, fileName, filePath, timestamp);
+    case "8": return generateStyle8(input, coverBuffer, fileName, filePath, timestamp);
     default:  return generateStyle1(input, coverBuffer, fileName, filePath, timestamp);
   }
 }

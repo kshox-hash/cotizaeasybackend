@@ -72,14 +72,19 @@ export type QuotePdfInput = {
     unitPrice: number;
     subtotal: number;
   }[];
-  /** Total final (con impuesto ya sumado, si aplica) — es el monto que se muestra y se cobra. */
+  /** Total final (descuento restado, impuesto ya sumado) — es el monto que se muestra y se cobra. */
   total: number;
   /** Porcentaje de impuesto aplicado (ej: 19). 0/undefined = sin impuesto, no se muestra desglose. */
   taxRate?: number;
-  /** Monto de impuesto ya calculado (subtotal * taxRate/100). El subtotal se deriva como total - taxAmount. */
+  /** Monto de impuesto ya calculado sobre el subtotal CON descuento aplicado. */
   taxAmount?: number;
   /** Nombre del impuesto a mostrar (ej: "IVA"). Default "IVA" si taxRate > 0 y no se especifica. */
   taxLabel?: string;
+  /** Porcentaje de descuento global aplicado (ej: 10). 0/undefined = sin descuento, no se muestra la fila. */
+  discountPercent?: number;
+  /** Monto de descuento ya calculado (subtotal bruto * discountPercent/100). El subtotal bruto (antes de
+   * descuento) se deriva como total - taxAmount + discountAmount. */
+  discountAmount?: number;
   extraFields?: {
     paymentConditions?: string;
     deliveryDate?: string;

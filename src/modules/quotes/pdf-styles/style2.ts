@@ -258,10 +258,13 @@ export function generateStyle2(
       const TOT_VW  = TOT_W - TOT_LW;
       const ROW_H   = 20;
 
-      const subtotal = input.total - (input.taxAmount || 0);
+      const discountAmount = input.discountAmount || 0;
+      const subtotal = input.total - (input.taxAmount || 0) + discountAmount;
       const totRows: [string, string, boolean][] = [
         ["SUBTOTAL",             formatCurrency(subtotal, input.currency), false],
-        ["DESCUENTO (0%)",       "—",                            false],
+        ...(discountAmount > 0
+          ? ([[`DESCUENTO${input.discountPercent ? ` (${input.discountPercent}%)` : ""}`, `-${formatCurrency(discountAmount, input.currency)}`, false]] as [string, string, boolean][])
+          : []),
         ...(input.taxAmount
           ? ([[`${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, formatCurrency(input.taxAmount, input.currency), false]] as [string, string, boolean][])
           : []),

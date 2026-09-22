@@ -36,12 +36,26 @@ type SendQuoteBody = {
   currency?: string;
   taxRate?: number;
   taxLabel?: string;
+  discountPercent?: number;
 };
 
 function computeTax(subtotal: number, taxRatePercent: number | undefined | null) {
   const taxRate = Number(taxRatePercent || 0);
   const taxAmount = taxRate > 0 ? Math.round(subtotal * (taxRate / 100)) : 0;
   return { taxRate: taxRate > 0 ? taxRate : undefined, taxAmount: taxRate > 0 ? taxAmount : undefined, total: subtotal + taxAmount };
+}
+
+// El descuento se aplica sobre el subtotal ANTES del impuesto (reduce la base
+// imponible) — así el IVA se calcula sobre lo que el cliente realmente paga
+// por los ítems, no sobre un monto que nunca se cobró.
+function computeDiscount(subtotal: number, discountPercentInput: number | undefined | null) {
+  const pct = Math.min(100, Math.max(0, Number(discountPercentInput || 0)));
+  const discountAmount = pct > 0 ? Math.round(subtotal * (pct / 100)) : 0;
+  return {
+    discountPercent: pct > 0 ? pct : undefined,
+    discountAmount: pct > 0 ? discountAmount : undefined,
+    discountedSubtotal: subtotal - discountAmount,
+  };
 }
 
 export const quoteSendController = {
@@ -105,6 +119,7 @@ export const quoteSendController = {
         currency,
         taxRate: taxRateOverride,
         taxLabel: taxLabelOverride,
+        discountPercent: discountPercentInput,
       } = req.body;
 
       if (!Array.isArray(products) || products.length === 0) {
@@ -134,7 +149,8 @@ export const quoteSendController = {
         };
       });
       const subtotal = lines.reduce((acc, l) => acc + l.subtotal, 0);
-      const { taxRate, taxAmount, total } = computeTax(subtotal, taxRateOverride ?? profile?.tax_rate);
+      const { discountPercent, discountAmount, discountedSubtotal } = computeDiscount(subtotal, discountPercentInput);
+      const { taxRate, taxAmount, total } = computeTax(discountedSubtotal, taxRateOverride ?? profile?.tax_rate);
       const docTitle = templateType === "eventos" ? "Propuesta" : "Cotización";
       const previewClient = clients?.[0];
 
@@ -162,6 +178,8 @@ export const quoteSendController = {
         taxRate,
         taxAmount,
         taxLabel: taxLabelOverride || profile?.tax_label || undefined,
+        discountPercent,
+        discountAmount,
         extraFields,
         layout: profile?.quote_layout || undefined,
         customFields: profile?.quote_custom_fields || undefined,
@@ -185,6 +203,8 @@ export const quoteSendController = {
         taxRate,
         taxAmount,
         taxLabel: taxLabelOverride || profile?.tax_label,
+        discountPercent,
+        discountAmount,
       }).catch((err) => { console.error("[quoteSend] preview historial:", err); return null; });
 
       // No se espera esta escritura — no afecta la respuesta (el header de
@@ -225,6 +245,7 @@ export const quoteSendController = {
         quoteAccentColor,
         quoteLogoUrl,
         currency,
+        discountPercent: discountPercentInput,
       } = req.body;
 
       if (!Array.isArray(clients) || clients.length === 0) {
@@ -264,7 +285,8 @@ export const quoteSendController = {
       });
 
       const subtotal = lines.reduce((acc, l) => acc + l.subtotal, 0);
-      const { taxRate, taxAmount, total } = computeTax(subtotal, profile?.tax_rate);
+      const { discountPercent, discountAmount, discountedSubtotal } = computeDiscount(subtotal, discountPercentInput);
+      const { taxRate, taxAmount, total } = computeTax(discountedSubtotal, profile?.tax_rate);
       const docTitle = templateType === "eventos" ? "Propuesta" : "Cotización";
 
       const results = await dispatchQuoteToClients({
@@ -288,6 +310,8 @@ export const quoteSendController = {
         taxRate,
         taxAmount,
         taxLabel: profile?.tax_label || undefined,
+        discountPercent,
+        discountAmount,
         message,
         extraFields,
         layout: profile?.quote_layout || undefined,

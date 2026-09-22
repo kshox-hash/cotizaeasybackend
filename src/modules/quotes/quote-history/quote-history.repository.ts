@@ -52,6 +52,8 @@ export async function initQuoteHistoryPdfConfigColumns(): Promise<void> {
     ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2);
     ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12,2);
     ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS tax_label TEXT;
+    ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2);
+    ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2);
   `);
 }
 
@@ -77,12 +79,14 @@ export async function saveQuoteHistory(params: {
   taxRate?: number | null;
   taxAmount?: number | null;
   taxLabel?: string | null;
+  discountPercent?: number | null;
+  discountAmount?: number | null;
 }) {
   const token = generateQuoteToken();
   const res = await DB.getPool().query(
     `INSERT INTO quote_history
-       (user_id, template_type, client_name, client_email, client_phone, items, total, message, extra_fields, quote_token, status, quote_style, quote_accent_color, quote_logo_url, currency, tax_rate, tax_amount, tax_label)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       (user_id, template_type, client_name, client_email, client_phone, items, total, message, extra_fields, quote_token, status, quote_style, quote_accent_color, quote_logo_url, currency, tax_rate, tax_amount, tax_label, discount_percent, discount_amount)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      RETURNING *`,
     [
       params.userId,
@@ -103,6 +107,8 @@ export async function saveQuoteHistory(params: {
       params.taxRate ?? null,
       params.taxAmount ?? null,
       params.taxLabel || null,
+      params.discountPercent ?? null,
+      params.discountAmount ?? null,
     ]
   );
   return res.rows[0];
@@ -122,7 +128,8 @@ export async function markQuoteAnswered(userId: string, quoteId: string) {
 export async function listQuoteHistory(userId: string, limit = 60) {
   const res = await DB.getPool().query(
     `SELECT id, template_type, client_name, client_email, client_phone,
-            items, total, currency, tax_rate, tax_amount, tax_label, message, extra_fields, sent_at,
+            items, total, currency, tax_rate, tax_amount, tax_label, discount_percent, discount_amount,
+            message, extra_fields, sent_at,
             status, viewed_at, accepted_at, rejected_at, payment_status, paid_at
      FROM quote_history
      WHERE user_id = $1

@@ -65,8 +65,6 @@ export async function dispatchQuoteToClients(params: {
   taxRate?: number;
   taxAmount?: number;
   taxLabel?: string;
-  discountPercent?: number;
-  discountAmount?: number;
   message?: string;
   extraFields?: Record<string, any>;
   layout?: QuoteLayoutBlock[];
@@ -101,8 +99,6 @@ export async function dispatchQuoteToClients(params: {
         taxRate: params.taxRate,
         taxAmount: params.taxAmount,
         taxLabel: params.taxLabel,
-        discountPercent: params.discountPercent,
-        discountAmount: params.discountAmount,
         extraFields: params.extraFields,
         layout: params.layout,
         customFields: params.customFields,
@@ -126,8 +122,6 @@ export async function dispatchQuoteToClients(params: {
         taxRate:           params.taxRate,
         taxAmount:         params.taxAmount,
         taxLabel:          params.taxLabel,
-        discountPercent:   params.discountPercent,
-        discountAmount:    params.discountAmount,
       }).catch((err) => { console.error("[quoteDispatch] historial:", err); return null; });
 
       const catalogItemIds = (Array.isArray(params.items) ? params.items : [])

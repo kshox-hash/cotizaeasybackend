@@ -229,10 +229,9 @@ export function generateStyle3(
       y = ensureSpace(y, 70);
       const TW = 270, TX = M + CW - TW, TLW = 160, TVW = TW - TLW, TRH = 20;
 
-      const discountAmount = input.discountAmount || 0;
-      const subtotal = input.total - (input.taxAmount || 0) + discountAmount;
+      const subtotal = input.total - (input.taxAmount || 0);
       ([[`SUBTOTAL`, formatCurrency(subtotal, input.currency), false],
-       ...(discountAmount > 0 ? [[`DESCUENTO${input.discountPercent ? ` (${input.discountPercent}%)` : ""}`, `-${formatCurrency(discountAmount, input.currency)}`, false]] : []),
+       [`DESCUENTO`, "—", false],
        ...(input.taxAmount ? [[`${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, formatCurrency(input.taxAmount, input.currency), false]] : []),
        [`TOTAL`, formatCurrency(input.total, input.currency), true]] as [string, string, boolean][]).forEach(([lbl, val, bold]) => {
         const isBold = bold as boolean;

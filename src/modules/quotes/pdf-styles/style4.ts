@@ -221,13 +221,10 @@ export function generateStyle4(
 
       // ── Totals — boxes side by side ────────────────────────────────────────
       y = ensureSpace(y, 60);
-      const discountAmount = input.discountAmount || 0;
-      const subtotal = input.total - (input.taxAmount || 0) + discountAmount;
+      const subtotal = input.total - (input.taxAmount || 0);
       const boxData = [
         { label: "SUBTOTAL",  value: formatCurrency(subtotal, input.currency), accent: false },
-        ...(discountAmount > 0
-          ? [{ label: `DESCUENTO${input.discountPercent ? ` (${input.discountPercent}%)` : ""}`, value: `-${formatCurrency(discountAmount, input.currency)}`, accent: false }]
-          : []),
+        { label: "DESCUENTO", value: "—",                            accent: false },
         ...(input.taxAmount
           ? [{ label: `${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, value: formatCurrency(input.taxAmount, input.currency), accent: false }]
           : []),

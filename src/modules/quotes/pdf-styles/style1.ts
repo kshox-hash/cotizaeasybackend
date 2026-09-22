@@ -434,13 +434,10 @@ export function generateStyle1(
         const TOT_VAL_W = TOT_W - TOT_LBL_W;
         const TOT_ROW_H = 22;
 
-        const discountAmount = input.discountAmount || 0;
-        const subtotal = input.total - (input.taxAmount || 0) + discountAmount;
+        const subtotal = input.total - (input.taxAmount || 0);
         const smallRows: [string, string][] = [
           ["SUBTOTAL", formatCurrency(subtotal, input.currency)],
-          ...(discountAmount > 0
-            ? ([[`DESCUENTO${input.discountPercent ? ` (${input.discountPercent}%)` : ""}`, `-${formatCurrency(discountAmount, input.currency)}`]] as [string, string][])
-            : []),
+          ["DESCUENTO", "—"],
           ...(input.taxAmount
             ? ([[`${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, formatCurrency(input.taxAmount, input.currency)]] as [string, string][])
             : []),

@@ -31,6 +31,28 @@ export type QuoteCustomFieldDef = {
   type?: QuoteCustomFieldType;
 };
 
+// ── Plantilla en blanco (Estilo PDF "9") ─────────────────────────────────────
+// A diferencia de QuoteCustomFieldDef (que se agrega DENTRO de una de las 3
+// zonas fijas de un estilo 1-8), un QuoteBlockDef es la plantilla completa:
+// el orden del array ES el orden en la hoja, sin zonas ni estilo base.
+export type QuoteBlockType = "header" | "client" | "items" | "totals" | QuoteCustomFieldType;
+
+export type QuoteBlockDef = {
+  id: string;
+  type: QuoteBlockType;
+  /** Solo aplica a "client" y "items" — el resto lo ignora. */
+  variant?: 1 | 2 | 3;
+  /** Solo aplica a los 5 tipos reusados del Editor Visual (mismo uso que QuoteCustomFieldDef.title). */
+  title?: string;
+};
+
+export const DEFAULT_QUOTE_BLOCKS: QuoteBlockDef[] = [
+  { id: "header", type: "header" },
+  { id: "client", type: "client", variant: 1 },
+  { id: "items",  type: "items",  variant: 1 },
+  { id: "totals", type: "totals" },
+];
+
 export type QuoteLayoutBlockId = "client" | "notes" | "items" | "terms" | "signature" | "footer";
 
 export type QuoteLayoutBlock = {
@@ -112,6 +134,8 @@ export type QuotePdfInput = {
    * dentro de extraFields con la clave `cf_<id>` — reutiliza el mismo canal ya
    * cableado (borrador, preview, envío, historial) en vez de uno nuevo. */
   customFields?: QuoteCustomFieldDef[];
+  /** Plantilla en blanco armada por bloques (Estilo PDF "9") — ver DEFAULT_QUOTE_BLOCKS. */
+  blocks?: QuoteBlockDef[];
 };
 
 /** Campos personalizados de una zona con su valor ya resuelto (y sin los que

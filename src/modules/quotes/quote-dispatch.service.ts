@@ -3,7 +3,7 @@ import { generateQuotePdf } from "./quote.service";
 import { sendQuoteEmail } from "./quote-email.service";
 import { saveQuoteHistory } from "./quote-history/quote-history.repository";
 import { incrementCatalogItemsQuotedCount } from "./quote-catalog/quote-catalog.repository";
-import { QuoteCustomFieldDef, QuoteLayoutBlock } from "./quote.types";
+import { QuoteBlockDef, QuoteCustomFieldDef, QuoteLayoutBlock } from "./quote.types";
 
 export type QuoteLine = {
   name: string;
@@ -69,6 +69,7 @@ export async function dispatchQuoteToClients(params: {
   extraFields?: Record<string, any>;
   layout?: QuoteLayoutBlock[];
   customFields?: QuoteCustomFieldDef[];
+  blocks?: QuoteBlockDef[];
 }): Promise<DispatchResult[]> {
   const results: DispatchResult[] = [];
 
@@ -102,6 +103,7 @@ export async function dispatchQuoteToClients(params: {
         extraFields: params.extraFields,
         layout: params.layout,
         customFields: params.customFields,
+        blocks: params.blocks,
       });
       filePath = generated.filePath;
 

@@ -5,7 +5,7 @@ import { companyProfileService } from "../profiles/company_profile.service";
 import { companyProfileRepository } from "../profiles/company_profile_repository";
 import { dispatchQuoteToClients } from "./quote-dispatch.service";
 import { generateQuotePdf } from "./quote.service";
-import { QuoteTemplateType, QuoteCustomFieldDef } from "./quote.types";
+import { QuoteTemplateType, QuoteCustomFieldDef, QuoteBlockDef } from "./quote.types";
 import { saveQuoteHistory } from "./quote-history/quote-history.repository";
 import { incrementCatalogItemsQuotedCount } from "./quote-catalog/quote-catalog.repository";
 
@@ -39,6 +39,9 @@ type SendQuoteBody = {
   /** Campos personalizados en vivo (sin guardar aún) para previsualizar el
    * Editor Visual de Cotización — si viene, pisa los guardados en el perfil. */
   customFields?: QuoteCustomFieldDef[];
+  /** Plantilla en blanco en vivo (sin guardar aún) — igual que customFields,
+   * si viene pisa la guardada en el perfil (solo aplica con quoteStyle "9"). */
+  blocks?: QuoteBlockDef[];
   /** El Editor Visual regenera esta vista previa en cada edición (con
    * debounce); sin este flag, cada una de esas llamadas dejaría una fila de
    * "cotización descargada" en el historial real del usuario. */
@@ -113,6 +116,7 @@ export const quoteSendController = {
         taxRate: taxRateOverride,
         taxLabel: taxLabelOverride,
         customFields: customFieldsOverride,
+        blocks: blocksOverride,
         skipHistory,
       } = req.body;
 
@@ -174,6 +178,7 @@ export const quoteSendController = {
         extraFields,
         layout: profile?.quote_layout || undefined,
         customFields: customFieldsOverride ?? profile?.quote_custom_fields ?? undefined,
+        blocks: blocksOverride ?? profile?.quote_blocks ?? undefined,
       });
       filePath = generated.filePath;
 
@@ -301,6 +306,7 @@ export const quoteSendController = {
         extraFields,
         layout: profile?.quote_layout || undefined,
         customFields: profile?.quote_custom_fields || undefined,
+        blocks: profile?.quote_blocks || undefined,
       });
 
       const failed = results.filter((r) => !r.ok);

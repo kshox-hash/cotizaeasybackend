@@ -2,11 +2,42 @@ import { Request, Response } from "express";
 import { companyProfileService } from "./company_profile.service";
 import { companyProfileRepository } from "./company_profile_repository";
 import { isSupportedCurrency, taxNameForCurrency } from "../../utils/format";
-import { QuoteCustomFieldDef, QuoteCustomFieldType, QuoteCustomFieldZone } from "../quotes/quote.types";
+import { QuoteBlockDef, QuoteBlockType, QuoteCustomFieldDef, QuoteCustomFieldType, QuoteCustomFieldZone } from "../quotes/quote.types";
 
 const VALID_FIELD_ZONES: QuoteCustomFieldZone[] = ["client", "meta", "footer"];
 const VALID_FIELD_TYPES: QuoteCustomFieldType[] = ["text", "note", "keyvalue", "alert", "signature"];
 const MAX_CUSTOM_FIELDS = 12;
+
+const VALID_BLOCK_TYPES: QuoteBlockType[] = ["header", "client", "items", "totals", ...VALID_FIELD_TYPES];
+// Los mismos 5 tipos reusados del Editor Visual son los únicos que llevan título libre.
+const TITLED_BLOCK_TYPES: QuoteBlockType[] = VALID_FIELD_TYPES;
+const VARIANT_BLOCK_TYPES: QuoteBlockType[] = ["client", "items"];
+const MAX_BLOCKS = 20;
+
+function sanitizeQuoteBlocks(raw: unknown): QuoteBlockDef[] {
+  if (!Array.isArray(raw)) throw new Error("La plantilla no tiene un formato válido");
+  if (raw.length > MAX_BLOCKS) throw new Error(`Como máximo ${MAX_BLOCKS} bloques`);
+  const seen = new Set<string>();
+  return raw.map((b): QuoteBlockDef => {
+    const type = b?.type;
+    if (!VALID_BLOCK_TYPES.includes(type)) throw new Error(`Tipo de bloque desconocido: ${type}`);
+    const id = String(b?.id ?? "").trim();
+    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(id)) throw new Error("Id de bloque inválido");
+    if (seen.has(id)) throw new Error(`Bloque repetido: ${id}`);
+    seen.add(id);
+    const block: QuoteBlockDef = { id, type };
+    if (VARIANT_BLOCK_TYPES.includes(type)) {
+      const variant = Number(b?.variant);
+      block.variant = ([1, 2, 3] as number[]).includes(variant) ? (variant as 1 | 2 | 3) : 1;
+    }
+    if (TITLED_BLOCK_TYPES.includes(type)) {
+      const title = String(b?.title ?? "").trim().slice(0, 60);
+      if (!title) throw new Error("Cada bloque de texto necesita un título");
+      block.title = title;
+    }
+    return block;
+  });
+}
 
 function sanitizeQuoteCustomFields(raw: unknown): QuoteCustomFieldDef[] {
   if (!Array.isArray(raw)) throw new Error("Los campos personalizados no tienen un formato válido");
@@ -137,6 +168,29 @@ export const companyProfileController = {
     } catch (error) {
       console.error("[companyProfile] updateCustomFields:", error);
       return res.status(500).json({ ok: false, message: "Error guardando los campos personalizados" });
+    }
+  },
+
+  async updateQuoteBlocks(
+    req: Request<unknown, unknown, { blocks?: unknown }>,
+    res: Response
+  ): Promise<Response> {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ ok: false, message: "Usuario no autenticado" });
+      }
+      let blocks: QuoteBlockDef[];
+      try {
+        blocks = sanitizeQuoteBlocks(req.body?.blocks);
+      } catch (err) {
+        return res.status(400).json({ ok: false, message: err instanceof Error ? err.message : "Plantilla inválida" });
+      }
+      await companyProfileRepository.updateQuoteBlocks(userId, blocks);
+      return res.json({ ok: true, blocks });
+    } catch (error) {
+      console.error("[companyProfile] updateQuoteBlocks:", error);
+      return res.status(500).json({ ok: false, message: "Error guardando la plantilla" });
     }
   },
 };

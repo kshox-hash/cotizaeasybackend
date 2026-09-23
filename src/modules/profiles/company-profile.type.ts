@@ -1,4 +1,4 @@
-import { QuoteCustomFieldDef, QuoteLayoutBlock } from "../quotes/quote.types";
+import { QuoteBlockDef, QuoteCustomFieldDef, QuoteLayoutBlock } from "../quotes/quote.types";
 
 export interface CompanyProfile {
   id: string;
@@ -17,6 +17,8 @@ export interface CompanyProfile {
   quote_layout: QuoteLayoutBlock[] | null;
   /** Campos de formulario extra definidos por el usuario (título + zona), se llenan por cotización. */
   quote_custom_fields: QuoteCustomFieldDef[] | null;
+  /** Plantilla en blanco armada por bloques (Estilo PDF "9"). null = usar DEFAULT_QUOTE_BLOCKS. */
+  quote_blocks: QuoteBlockDef[] | null;
   currency: string | null;
   /** Porcentaje de impuesto (ej: 19 para IVA 19%). 0 = sin impuesto, no se muestra en la cotización. */
   tax_rate: number;

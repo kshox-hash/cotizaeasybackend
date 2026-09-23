@@ -8,5 +8,6 @@ router.get("/company-profile/me", authMiddleware, companyProfileController.getMe
 router.post("/company-profile/me", authMiddleware, companyProfileController.upsertMe);
 router.post("/company-profile/me/quote-config", authMiddleware, companyProfileController.updateQuoteConfig);
 router.post("/company-profile/me/quote-fields", authMiddleware, companyProfileController.updateCustomFields);
+router.post("/company-profile/me/quote-blocks", authMiddleware, companyProfileController.updateQuoteBlocks);
 
 export default router;

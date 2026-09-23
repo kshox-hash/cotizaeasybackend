@@ -13,6 +13,7 @@ import { generateStyle5 } from "./pdf-styles/style5";
 import { generateStyle6 } from "./pdf-styles/style6";
 import { generateStyle7 } from "./pdf-styles/style7";
 import { generateStyle8 } from "./pdf-styles/style8";
+import { generateBlankTemplate } from "./pdf-styles/blank";
 
 export type { QuotePdfInput, QuoteTemplateType };
 
@@ -138,6 +139,7 @@ export async function generateQuotePdf(
     case "6": return generateStyle6(input, coverBuffer, fileName, filePath, timestamp);
     case "7": return generateStyle7(input, coverBuffer, fileName, filePath, timestamp);
     case "8": return generateStyle8(input, coverBuffer, fileName, filePath, timestamp);
+    case "9": return generateBlankTemplate(input, coverBuffer, fileName, filePath, timestamp);
     default:  return generateStyle1(input, coverBuffer, fileName, filePath, timestamp);
   }
 }

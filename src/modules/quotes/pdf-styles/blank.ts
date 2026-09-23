@@ -66,8 +66,26 @@ export function generateBlankTemplate(
         return M + 46;
       };
 
-      // ── Bloque: Encabezado (logo + marca + N°/fecha) ─────────────────────
-      const renderHeader = (sy: number): number => {
+      // Logo real (si hay) o iniciales de la marca en un recuadro/círculo de color.
+      const drawLogoBox = (x: number, y: number, w: number, h: number, shape: "square" | "circle", bg: string, fg: string) => {
+        if (cover) {
+          try {
+            doc.save();
+            if (shape === "circle") doc.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2).clip();
+            else doc.roundedRect(x, y, w, h, 6).clip();
+            doc.image(cover, x, y, { fit: [w, h], align: "center", valign: "center" });
+            doc.restore();
+            return;
+          } catch { /* cae al bloque de inicial abajo */ }
+        }
+        if (shape === "circle") doc.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2).fill(bg);
+        else doc.roundedRect(x, y, w, h, 6).fill(bg);
+        doc.fillColor(fg).font(FONT_BOLD).fontSize(h * 0.42)
+           .text(brand.charAt(0).toUpperCase(), x, y + h * 0.28, { width: w, align: "center" });
+      };
+
+      // ── Bloque: Encabezado (4 variantes) ──────────────────────────────────
+      const renderHeaderClassic = (sy: number): number => {
         let cy = sy;
         if (cover) {
           try {
@@ -88,14 +106,71 @@ export function generateBlankTemplate(
         return cy + 16;
       };
 
+      const renderHeaderCentered = (sy: number): number => {
+        let cy = sy;
+        const boxSize = 46;
+        drawLogoBox(M + CW / 2 - boxSize / 2, cy, boxSize, boxSize, "square", accent, hdrTxt);
+        cy += boxSize + 10;
+        doc.fillColor(ink).font(FONT_BOLD).fontSize(16).text(brand, M, cy, { width: CW, align: "center" });
+        cy += strH(brand, FONT_BOLD, 16, CW) + 4;
+        doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(8)
+           .text(`Cotización N° ${qNumber}  ·  ${issueDate}`, M, cy, { width: CW, align: "center" });
+        cy += 20;
+        hLine(cy, border, 0.8);
+        return cy + 16;
+      };
+
+      const renderHeaderBand = (sy: number): number => {
+        const bandH = 64;
+        doc.rect(0, sy, PW, bandH).fill(accent);
+        drawLogoBox(M, sy + (bandH - 38) / 2, 38, 38, "circle", hdrTxt, accent);
+        doc.fillColor(hdrTxt).font(FONT_BOLD).fontSize(15)
+           .text(brand, M + 50, sy + bandH / 2 - 9, { width: CW - 190 });
+        doc.fillColor(hdrTxt).font(FONT_REGULAR).fontSize(8)
+           .text(`N° ${qNumber}  ·  ${issueDate}`, M, sy + bandH / 2 - 5, { width: CW, align: "right" });
+        return sy + bandH + 18;
+      };
+
+      const renderHeaderCircleSide = (sy: number): number => {
+        let cy = sy;
+        const size = 44;
+        drawLogoBox(M, cy, size, size, "circle", accent, hdrTxt);
+        doc.fillColor(ink).font(FONT_BOLD).fontSize(14).text(brand, M + size + 12, cy + 3, { width: CW - size - 12 - 140 });
+        doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(8)
+           .text(`Cotización N° ${qNumber}  ·  ${issueDate}`, M + size + 12, cy + 21, { width: CW - size - 12 - 140 });
+        cy += size + 14;
+        hLine(cy, border, 0.8);
+        return cy + 16;
+      };
+
+      const renderHeader = (sy: number, variant: 1 | 2 | 3 | 4): number => {
+        if (variant === 2) return renderHeaderCentered(sy);
+        if (variant === 3) return renderHeaderBand(sy);
+        if (variant === 4) return renderHeaderCircleSide(sy);
+        return renderHeaderClassic(sy);
+      };
+
       // ── Bloque: Datos del cliente (3 variantes) ──────────────────────────
       const clientLines: string[] = [];
       if (cust.name?.trim())  clientLines.push(cust.name.trim());
       if (cust.email?.trim()) clientLines.push(cust.email.trim());
       if (cust.phone?.trim()) clientLines.push(`Tel: ${cust.phone.trim()}`);
 
-      const renderClient = (sy: number, variant: 1 | 2 | 3): number => {
+      const renderClient = (sy: number, variant: 1 | 2 | 3 | 4): number => {
         let cy = ensureSpace(sy, 60);
+        if (variant === 4) {
+          const half = CW / 2 - 10;
+          doc.fillColor(inkDim).font(FONT_BOLD).fontSize(7.5)
+             .text("CLIENTE", M, cy, { width: half })
+             .text("PREPARADO POR", M + half + 20, cy, { width: half });
+          cy += 12;
+          const text = clientLines.join("\n") || "—";
+          const h1 = strH(text, FONT_REGULAR, 9, half);
+          doc.fillColor(ink).font(FONT_REGULAR).fontSize(9)
+             .text(text, M, cy, { width: half })
+             .text(brand, M + half + 20, cy, { width: half });
+          return cy + Math.max(h1, 12) + 16;
+        }
         if (variant === 2) {
           const text = clientLines.join("\n") || "—";
           const h = strH(text, FONT_REGULAR, 9.5, CW - 28);
@@ -233,14 +308,43 @@ export function generateBlankTemplate(
         return cy + 10;
       };
 
-      const renderItems = (sy: number, variant: 1 | 2 | 3): number => {
+      const renderItemsReceipt = (sy: number): number => {
+        let cy = ensureSpace(sy, 60);
+        if (lines.length === 0) {
+          doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(9).text("Sin ítems seleccionados.", M, cy);
+          return cy + 20;
+        }
+        lines.forEach((line) => {
+          cy = ensureSpace(cy, 30);
+          const label = `${line.name}${line.quantity > 1 ? `  ×${line.quantity}` : ""}`;
+          const priceStr = formatCurrency(line.subtotal, input.currency);
+          doc.font(FONT_BOLD).fontSize(9.5);
+          const priceW = doc.widthOfString(priceStr);
+          doc.fillColor(ink).font(FONT_REGULAR).fontSize(9.5).text(label, M, cy, { width: CW * 0.65 });
+          const dotsX1 = M + Math.min(CW * 0.65, doc.widthOfString(label) + 6);
+          const dotsX2 = M + CW - priceW - 8;
+          if (dotsX2 > dotsX1) {
+            doc.save();
+            doc.dash(1, { space: 2 }).strokeColor(border).lineWidth(0.6)
+               .moveTo(dotsX1, cy + 7).lineTo(dotsX2, cy + 7).stroke();
+            doc.undash();
+            doc.restore();
+          }
+          doc.fillColor(ink).font(FONT_BOLD).fontSize(9.5).text(priceStr, M, cy, { width: CW, align: "right" });
+          cy += 18;
+        });
+        return cy + 10;
+      };
+
+      const renderItems = (sy: number, variant: 1 | 2 | 3 | 4): number => {
         if (variant === 2) return renderItemsCards(sy);
         if (variant === 3) return renderItemsCompact(sy);
+        if (variant === 4) return renderItemsReceipt(sy);
         return renderItemsClassic(sy);
       };
 
-      // ── Bloque: Totales ───────────────────────────────────────────────────
-      const renderTotals = (sy: number): number => {
+      // ── Bloque: Totales (4 variantes) ──────────────────────────────────────
+      const renderTotalsBar = (sy: number): number => {
         let cy = ensureSpace(sy, 90);
         const TOT_W = 288, TOT_X = M + CW - TOT_W, TOT_LBL_W = 170, TOT_VAL_W = TOT_W - TOT_LBL_W, TOT_ROW_H = 22;
         const subtotal = input.total - (input.taxAmount || 0);
@@ -267,6 +371,76 @@ export function generateBlankTemplate(
            .text("TOTAL", TOT_X + 8, cy + 8, { width: TOT_LBL_W - 10 })
            .text(formatCurrency(input.total, input.currency), TOT_X + TOT_LBL_W + 5, cy + 8, { width: TOT_VAL_W - 8, align: "right" });
         return cy + TOTAL_ROW_H + 22;
+      };
+
+      const renderTotalsSimple = (sy: number): number => {
+        let cy = ensureSpace(sy, 70);
+        const W = 260, X = M + CW - W;
+        const subtotal = input.total - (input.taxAmount || 0);
+        doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(9)
+           .text("SUBTOTAL", X, cy, { width: W * 0.5 })
+           .text(formatCurrency(subtotal, input.currency), X, cy, { width: W, align: "right" });
+        cy += 16;
+        if (input.taxAmount) {
+          doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(9)
+             .text(`${input.taxLabel || "IVA"}${input.taxRate ? ` (${input.taxRate}%)` : ""}`, X, cy, { width: W * 0.5 })
+             .text(formatCurrency(input.taxAmount, input.currency), X, cy, { width: W, align: "right" });
+          cy += 16;
+        }
+        doc.strokeColor(border).lineWidth(0.8).moveTo(X, cy).lineTo(X + W, cy).stroke();
+        cy += 8;
+        doc.fillColor(ink).font(FONT_BOLD).fontSize(13)
+           .text("TOTAL", X, cy, { width: W * 0.5 })
+           .text(formatCurrency(input.total, input.currency), X, cy, { width: W, align: "right" });
+        return cy + 26;
+      };
+
+      const renderTotalsCard = (sy: number): number => {
+        const subtotal = input.total - (input.taxAmount || 0);
+        const rows: [string, string][] = [
+          ["Subtotal", formatCurrency(subtotal, input.currency)],
+          ...(input.taxAmount
+            ? ([[input.taxLabel || "IVA", formatCurrency(input.taxAmount, input.currency)]] as [string, string][])
+            : []),
+        ];
+        const boxW = 320, boxX = M + CW - boxW;
+        const boxH = 14 + rows.length * 14 + 30;
+        let cy = ensureSpace(sy, boxH + 20);
+        doc.rect(boxX, cy, boxW, boxH).fill(rowAlt);
+        doc.strokeColor(border).lineWidth(0.8).rect(boxX, cy, boxW, boxH).stroke();
+        let ry = cy + 12;
+        rows.forEach(([lbl, val]) => {
+          doc.fillColor(inkSub).font(FONT_REGULAR).fontSize(8)
+             .text(lbl, boxX + 14, ry, { width: boxW - 28 - 100 })
+             .text(val, boxX + 14, ry, { width: boxW - 28, align: "right" });
+          ry += 14;
+        });
+        ry += 4;
+        doc.fillColor(accent).font(FONT_BOLD).fontSize(15)
+           .text(`TOTAL  ${formatCurrency(input.total, input.currency)}`, boxX + 14, ry, { width: boxW - 28, align: "right" });
+        return cy + boxH + 20;
+      };
+
+      const renderTotalsHero = (sy: number): number => {
+        let cy = ensureSpace(sy, 90);
+        const subtotal = input.total - (input.taxAmount || 0);
+        const fine = input.taxAmount
+          ? `Subtotal ${formatCurrency(subtotal, input.currency)}  ·  ${input.taxLabel || "IVA"} ${formatCurrency(input.taxAmount, input.currency)}`
+          : `Subtotal ${formatCurrency(subtotal, input.currency)}`;
+        doc.fillColor(inkDim).font(FONT_REGULAR).fontSize(8).text(fine, M, cy, { width: CW, align: "right" });
+        cy += 14;
+        doc.fillColor(inkDim).font(FONT_BOLD).fontSize(9).text("TOTAL A PAGAR", M, cy, { width: CW, align: "right" });
+        cy += 15;
+        doc.fillColor(accent).font(FONT_BOLD).fontSize(22)
+           .text(formatCurrency(input.total, input.currency), M, cy, { width: CW, align: "right" });
+        return cy + 34;
+      };
+
+      const renderTotals = (sy: number, variant: 1 | 2 | 3 | 4): number => {
+        if (variant === 2) return renderTotalsSimple(sy);
+        if (variant === 3) return renderTotalsCard(sy);
+        if (variant === 4) return renderTotalsHero(sy);
+        return renderTotalsBar(sy);
       };
 
       // ── Los 5 tipos reusados del Editor Visual — mismo dibujo que
@@ -318,10 +492,10 @@ export function generateBlankTemplate(
       const blocks = input.blocks?.length ? input.blocks : DEFAULT_QUOTE_BLOCKS;
       let y = M;
       for (const block of blocks) {
-        if (block.type === "header") { y = renderHeader(y); continue; }
+        if (block.type === "header") { y = renderHeader(y, block.variant || 1); continue; }
         if (block.type === "client") { y = renderClient(y, block.variant || 1); continue; }
         if (block.type === "items")  { y = renderItems(y, block.variant || 1); continue; }
-        if (block.type === "totals") { y = renderTotals(y); continue; }
+        if (block.type === "totals") { y = renderTotals(y, block.variant || 1); continue; }
         y = renderCustomBlock(block, y);
       }
 

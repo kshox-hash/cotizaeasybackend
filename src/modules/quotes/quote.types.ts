@@ -40,8 +40,8 @@ export type QuoteBlockType = "header" | "client" | "items" | "totals" | QuoteCus
 export type QuoteBlockDef = {
   id: string;
   type: QuoteBlockType;
-  /** Solo aplica a "client" y "items" — el resto lo ignora. */
-  variant?: 1 | 2 | 3;
+  /** Solo aplica a "header", "client", "items" y "totals" — el resto lo ignora. */
+  variant?: 1 | 2 | 3 | 4;
   /** Solo aplica a los 5 tipos reusados del Editor Visual (mismo uso que QuoteCustomFieldDef.title). */
   title?: string;
 };

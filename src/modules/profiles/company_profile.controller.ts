@@ -11,7 +11,7 @@ const MAX_CUSTOM_FIELDS = 12;
 const VALID_BLOCK_TYPES: QuoteBlockType[] = ["header", "client", "items", "totals", ...VALID_FIELD_TYPES];
 // Los mismos 5 tipos reusados del Editor Visual son los únicos que llevan título libre.
 const TITLED_BLOCK_TYPES: QuoteBlockType[] = VALID_FIELD_TYPES;
-const VARIANT_BLOCK_TYPES: QuoteBlockType[] = ["client", "items"];
+const VARIANT_BLOCK_TYPES: QuoteBlockType[] = ["header", "client", "items", "totals"];
 const MAX_BLOCKS = 20;
 
 function sanitizeQuoteBlocks(raw: unknown): QuoteBlockDef[] {
@@ -28,7 +28,7 @@ function sanitizeQuoteBlocks(raw: unknown): QuoteBlockDef[] {
     const block: QuoteBlockDef = { id, type };
     if (VARIANT_BLOCK_TYPES.includes(type)) {
       const variant = Number(b?.variant);
-      block.variant = ([1, 2, 3] as number[]).includes(variant) ? (variant as 1 | 2 | 3) : 1;
+      block.variant = ([1, 2, 3, 4] as number[]).includes(variant) ? (variant as 1 | 2 | 3 | 4) : 1;
     }
     if (TITLED_BLOCK_TYPES.includes(type)) {
       const title = String(b?.title ?? "").trim().slice(0, 60);
